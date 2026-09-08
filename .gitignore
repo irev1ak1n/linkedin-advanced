@@ -25,7 +25,7 @@ coverage
 # nyc test coverage
 .nyc_output
 
-# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins/grunt.task)
 .grunt
 
 # Bower dependency directory (https://bower.io/)
@@ -41,7 +41,7 @@ build/Release
 node_modules/
 jspm_packages/
 
-# Snowpack dependency directory (https://snowpack.dev/)
+# Snowpack dependency directory (https://www.snowpack.dev/)
 web_modules/
 
 # TypeScript cache
@@ -141,3 +141,8 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Claude Code local files
+.claude/
+CLAUDE.md
+CLAUDE.local.md
