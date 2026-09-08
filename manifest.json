@@ -13,6 +13,13 @@
   "side_panel": {
     "default_path": "sidepanel/index.html"
   },
-  "permissions": ["sidePanel"],
-  "host_permissions": ["https://*.linkedin.com/*"]
+  "permissions": ["sidePanel", "storage"],
+  "host_permissions": ["https://*.linkedin.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://*.linkedin.com/in/*"],
+      "js": ["content/linkedin.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }
