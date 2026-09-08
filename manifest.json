@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Finder",
+  "version": "0.1.0",
+  "description": "A professional people discovery companion for LinkedIn.",
+  "action": {
+    "default_title": "Finder"
+  },
+  "background": {
+    "service_worker": "background/index.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel/index.html"
+  },
+  "permissions": ["sidePanel"],
+  "host_permissions": ["https://*.linkedin.com/*"]
+}

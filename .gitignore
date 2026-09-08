@@ -146,3 +146,8 @@ vite.config.ts.timestamp-*
 .claude/
 CLAUDE.md
 CLAUDE.local.md
+
+# Chrome extension packaging output (may contain a private signing key)
+*.crx
+*.pem
+*.zip
