@@ -15,6 +15,33 @@ export interface ProfileEducationEntry {
   field?: string;
 }
 
+export interface ProfileProjectEntry {
+  name?: string;
+  description?: string;
+}
+
+/** Every section the adapter knows how to look for — used purely for progress display (“About
+ * found, still watching for Education”), never to demand a profile contain all of them. A
+ * profile missing a section here is simply a profile without that section, not an error. */
+export type ProfileSectionName =
+  | "headline"
+  | "location"
+  | "about"
+  | "experience"
+  | "education"
+  | "skills"
+  | "projects";
+
+export const ALL_PROFILE_SECTIONS: ProfileSectionName[] = [
+  "headline",
+  "location",
+  "about",
+  "experience",
+  "education",
+  "skills",
+  "projects",
+];
+
 export interface LinkedInProfile {
   name?: string;
   headline?: string;
@@ -23,6 +50,7 @@ export interface LinkedInProfile {
   experience: ProfileExperienceEntry[];
   education: ProfileEducationEntry[];
   skills: string[];
+  projects: ProfileProjectEntry[];
   /**
    * True once the adapter found at least a name or headline on the page — lets callers tell
    * "this is a real, at-least-partially-read profile" apart from "nothing could be read at
@@ -35,8 +63,24 @@ export const EMPTY_PROFILE: LinkedInProfile = {
   experience: [],
   education: [],
   skills: [],
+  projects: [],
   extracted: false,
 };
+
+/** Which known sections actually have content in this profile snapshot right now — the basis
+ * for honest collection-progress display. Never implies a section that's absent is "missing
+ * information"; some profiles genuinely have no Projects section, for example. */
+export function foundSections(profile: LinkedInProfile): ProfileSectionName[] {
+  const found: ProfileSectionName[] = [];
+  if (profile.headline) found.push("headline");
+  if (profile.location) found.push("location");
+  if (profile.about) found.push("about");
+  if (profile.experience.length > 0) found.push("experience");
+  if (profile.education.length > 0) found.push("education");
+  if (profile.skills.length > 0) found.push("skills");
+  if (profile.projects.length > 0) found.push("projects");
+  return found;
+}
 
 /** Every text field of a profile that matching is allowed to search, paired with a
  * human-readable label used in evidence — the single source of truth for "where can a
@@ -49,6 +93,7 @@ export interface ProfileTextField {
 export function profileTextFields(profile: LinkedInProfile): ProfileTextField[] {
   const fields: ProfileTextField[] = [];
   if (profile.headline) fields.push({ label: "Headline", text: profile.headline });
+  if (profile.location) fields.push({ label: "Location", text: profile.location });
   if (profile.about) fields.push({ label: "About", text: profile.about });
   for (const entry of profile.experience) {
     const parts = [entry.title, entry.company, entry.description].filter(Boolean);
@@ -67,6 +112,12 @@ export function profileTextFields(profile: LinkedInProfile): ProfileTextField[] 
   }
   if (profile.skills.length > 0) {
     fields.push({ label: "Skills", text: profile.skills.join(", ") });
+  }
+  for (const entry of profile.projects) {
+    const parts = [entry.name, entry.description].filter(Boolean);
+    if (parts.length > 0) {
+      fields.push({ label: `Project${entry.name ? `: ${entry.name}` : ""}`, text: parts.join(" — ") });
+    }
   }
   return fields;
 }

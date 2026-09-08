@@ -27,6 +27,35 @@ body {
   color: #0a66c2;
 }
 
+.app__tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #e4e9ed;
+  margin-bottom: 4px;
+}
+
+.app__tab {
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: #56687a;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.app__tab--active {
+  color: #0a66c2;
+  border-bottom-color: #0a66c2;
+}
+
+.section-hint {
+  color: #56687a;
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+
 .app__section {
   margin-top: 18px;
 }
@@ -97,6 +126,21 @@ select,
 .text-input--small {
   flex: 1;
   padding: 5px 7px;
+}
+
+.text-area {
+  font: inherit;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #d0d7dd;
+  border-radius: 6px;
+  resize: vertical;
+  min-height: 70px;
+}
+
+.button--small {
+  padding: 4px 10px;
+  font-size: 11px;
 }
 
 .button {
@@ -325,4 +369,110 @@ select,
 
 .reason-item__field {
   font-weight: 600;
+}
+
+/* Goal Setup */
+.goal-setup__textarea-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.char-count {
+  font-size: 11px;
+  color: #8a949c;
+}
+
+.goal-setup__upload {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.goal-setup__upload-label {
+  cursor: pointer;
+}
+
+.goal-setup__file-status {
+  font-size: 11px;
+  color: #56687a;
+}
+
+.goal-setup__file-error {
+  font-size: 11px;
+  color: #c0392b;
+}
+
+.draft-review {
+  border: 1px solid #0a66c2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f4f9ff;
+}
+
+.draft-review__list {
+  margin-top: 8px;
+}
+
+.criterion-chip__label-input {
+  flex: 1;
+}
+
+.draft-review__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* Collection progress */
+.collection-progress__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.collection-progress__badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.collection-progress__badge--live {
+  background: #fff8e1;
+  color: #8a6d00;
+}
+
+.collection-progress__badge--final {
+  background: #e6f4ea;
+  color: #057642;
+}
+
+.collection-progress__sections {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #445;
+}
+
+.collection-progress__hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #8a949c;
+}
+
+.match-score--provisional {
+  background: #fff8e1;
+}
+
+.match-score__provisional-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8a6d00;
 }

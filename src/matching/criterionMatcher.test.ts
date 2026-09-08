@@ -4,7 +4,7 @@ import { createCriterion } from "../models/goal";
 import type { LinkedInProfile } from "../models/profile";
 
 function makeProfile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
-  return { experience: [], education: [], skills: [], extracted: true, ...overrides };
+  return { experience: [], education: [], skills: [], projects: [], extracted: true, ...overrides };
 }
 
 describe("matchCriterionAgainstProfile - exact phrase", () => {
@@ -90,5 +90,53 @@ describe("matchCriterionAgainstProfile - excluded criteria", () => {
     const profile = makeProfile({ headline: "Technical Recruiter at Acme" });
     const result = matchCriterionAgainstProfile(createCriterion("recruiter", "EXCLUDED"), profile);
     expect(result.status).toBe("MET_EXACT");
+  });
+});
+
+describe("matchCriterionAgainstProfile - this round's under-matching fix", () => {
+  it("treats 'Mechanical Engineering' as relevant evidence for an 'engineering background' criterion", () => {
+    const profile = makeProfile({ education: [{ school: "UT Austin", degree: "B.S. Mechanical Engineering" }] });
+    const result = matchCriterionAgainstProfile(createCriterion("engineering background", "PREFERRED"), profile);
+    expect(result.status).not.toBe("UNCONFIRMED");
+  });
+
+  it("matches 'engineer' against a criterion written as 'engineering', and vice versa", () => {
+    const asEngineer = makeProfile({ headline: "Senior Software Engineer" });
+    const result1 = matchCriterionAgainstProfile(createCriterion("software engineering", "PREFERRED"), asEngineer);
+    expect(result1.status).not.toBe("UNCONFIRMED");
+
+    // Word order reversed and split across two separate words ("Engineering... software"),
+    // so this can only pass via the stemmed same-field keyword tier, never a substring fluke.
+    const asEngineering = makeProfile({ about: "Engineering is my passion — I build software every day." });
+    const result2 = matchCriterionAgainstProfile(createCriterion("software engineer", "PREFERRED"), asEngineering);
+    expect(result2.status).toBe("MET_KEYWORDS");
+  });
+
+  it("still requires real mentorship evidence for FRC mentorship — generic robotics interest is not enough, even with the new leniency", () => {
+    const profile = makeProfile({
+      headline: "Robotics Engineer",
+      about: "I have general robotics experience building autonomous systems.",
+    });
+    const result = matchCriterionAgainstProfile(createCriterion("FRC mentor", "MUST_HAVE"), profile);
+    expect(result.status).toBe("UNCONFIRMED");
+  });
+
+  it("reproduces the mission's exact example goal against a plausible matching profile", () => {
+    // "I am looking for FRC mentors in Charlotte with mechanical or aerospace engineering
+    // experience who could advise our robotics team."
+    const profile = makeProfile({
+      headline: "FRC Mentor | Mechanical Engineer",
+      location: "Charlotte, North Carolina",
+      about: "I mentor a local FRC robotics team and work as a mechanical engineer.",
+    });
+    expect(matchCriterionAgainstProfile(createCriterion("FRC mentor", "MUST_HAVE"), profile).status).not.toBe(
+      "UNCONFIRMED",
+    );
+    expect(
+      matchCriterionAgainstProfile(createCriterion("Charlotte", "PREFERRED"), profile).status,
+    ).not.toBe("UNCONFIRMED");
+    expect(
+      matchCriterionAgainstProfile(createCriterion("mechanical engineering", "PREFERRED"), profile).status,
+    ).not.toBe("UNCONFIRMED");
   });
 });

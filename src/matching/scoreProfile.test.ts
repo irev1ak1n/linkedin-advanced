@@ -4,7 +4,7 @@ import { createCriterion, createGoal, type Goal } from "../models/goal";
 import type { LinkedInProfile } from "../models/profile";
 
 function makeProfile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
-  return { experience: [], education: [], skills: [], extracted: true, ...overrides };
+  return { experience: [], education: [], skills: [], projects: [], extracted: true, ...overrides };
 }
 
 function makeGoal(name: string, criteria: Goal["criteria"]): Goal {
@@ -128,7 +128,7 @@ describe("scoreProfileAgainstGoal - determinism", () => {
 describe("scoreProfileAgainstGoal - honest incomplete state", () => {
   it("reports an unextracted profile as incomplete rather than a misleading percentage", () => {
     const goal = makeGoal("Test", [createCriterion("Python", "MUST_HAVE")]);
-    const profile: LinkedInProfile = { experience: [], education: [], skills: [], extracted: false };
+    const profile: LinkedInProfile = { experience: [], education: [], skills: [], projects: [], extracted: false };
     const result = scoreProfileAgainstGoal(goal, profile);
     expect(result.profileExtracted).toBe(false);
     expect(result.complete).toBe(false);

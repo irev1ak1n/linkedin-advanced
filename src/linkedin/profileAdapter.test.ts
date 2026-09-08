@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { extractLinkedInProfile } from "./profileAdapter";
+import { extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
 
 function setBody(html: string): void {
   document.body.innerHTML = html;
@@ -52,6 +52,15 @@ function setFullProfilePage(): void {
           <li><span aria-hidden="true">Mentoring</span></li>
         </ul>
       </section>
+      <section>
+        <h2>Projects</h2>
+        <ul>
+          <li>
+            <span aria-hidden="true">Autonomous Line-Following Robot</span>
+            <span aria-hidden="true">Built a PID-controlled robot for a regional FRC scrimmage using Python and OpenCV.</span>
+          </li>
+        </ul>
+      </section>
     </main>
   `);
 }
@@ -95,6 +104,14 @@ describe("extractLinkedInProfile - full profile", () => {
     expect(profile.skills).toContain("Robotics");
   });
 
+  it("extracts projects", () => {
+    setFullProfilePage();
+    const profile = extractLinkedInProfile(document);
+    expect(profile.projects).toHaveLength(1);
+    expect(profile.projects[0].name).toBe("Autonomous Line-Following Robot");
+    expect(profile.projects[0].description).toContain("FRC scrimmage");
+  });
+
   it("never doubles text that has both an aria-hidden copy and a screen-reader-only copy", () => {
     setBody(`
       <main role="main">
@@ -126,6 +143,29 @@ describe("extractLinkedInProfile - incomplete or non-profile pages", () => {
     expect(profile.experience).toEqual([]);
     expect(profile.education).toEqual([]);
     expect(profile.skills).toEqual([]);
+  });
+});
+
+describe("profileIdentityKey", () => {
+  it("extracts the vanity slug from a real profile URL", () => {
+    expect(profileIdentityKey("https://www.linkedin.com/in/sahandhdz/")).toBe("sahandhdz");
+  });
+
+  it("ignores volatile tracking query params, which must not change the identity", () => {
+    const a = profileIdentityKey("https://www.linkedin.com/in/sahandhdz/?miniProfileUrn=xyz");
+    const b = profileIdentityKey("https://www.linkedin.com/in/sahandhdz/?trk=nav_responsive");
+    expect(a).toBe(b);
+    expect(a).toBe("sahandhdz");
+  });
+
+  it("returns different keys for different profiles", () => {
+    const a = profileIdentityKey("https://www.linkedin.com/in/sahandhdz/");
+    const b = profileIdentityKey("https://www.linkedin.com/in/williamhgates/");
+    expect(a).not.toBe(b);
+  });
+
+  it("returns null for a non-profile URL", () => {
+    expect(profileIdentityKey("https://www.linkedin.com/jobs/search/")).toBeNull();
   });
 });
 

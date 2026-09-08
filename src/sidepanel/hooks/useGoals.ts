@@ -8,6 +8,11 @@ export interface UseGoalsResult {
   loaded: boolean;
   selectGoal: (goalId: string) => void;
   addGoal: (name: string) => void;
+  /** Creates a brand-new goal pre-populated with the given criteria (typically from a
+   * reviewed/edited NLP or document draft) and selects it. Always a NEW goal — never merges
+   * into or overwrites an existing one, so a generated draft can never silently replace
+   * filters the user configured by hand. */
+  addGoalFromCriteria: (name: string, criteria: { label: string; importance: CriterionImportance }[]) => void;
   renameGoal: (goalId: string, name: string) => void;
   removeGoal: (goalId: string) => void;
   addCriterion: (goalId: string, label: string, importance: CriterionImportance) => void;
@@ -42,6 +47,18 @@ export function useGoals(): UseGoalsResult {
   const addGoal = useCallback(
     (name: string) => {
       const goal = createGoal(name);
+      persist([...goals, goal]);
+      selectGoal(goal.id);
+    },
+    [goals, persist, selectGoal],
+  );
+
+  const addGoalFromCriteria = useCallback(
+    (name: string, criteria: { label: string; importance: CriterionImportance }[]) => {
+      const goal: Goal = {
+        ...createGoal(name || "New goal"),
+        criteria: criteria.map((c) => createCriterion(c.label, c.importance)),
+      };
       persist([...goals, goal]);
       selectGoal(goal.id);
     },
@@ -103,6 +120,7 @@ export function useGoals(): UseGoalsResult {
     loaded,
     selectGoal,
     addGoal,
+    addGoalFromCriteria,
     renameGoal,
     removeGoal,
     addCriterion,

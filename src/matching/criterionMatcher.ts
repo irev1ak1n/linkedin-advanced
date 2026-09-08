@@ -14,7 +14,7 @@
 // text can never prove a trait is absent, only that it wasn't mentioned.
 import type { Criterion } from "../models/goal";
 import { type LinkedInProfile, profileTextFields } from "../models/profile";
-import { normalizeText, significantKeywords, truncateSnippet } from "./textNormalize";
+import { normalizeText, significantKeywords, stem, truncateSnippet } from "./textNormalize";
 
 export type CriterionMatchStatus = "MET_EXACT" | "MET_KEYWORDS" | "UNCONFIRMED";
 
@@ -55,11 +55,17 @@ export function matchCriterionAgainstProfile(
     }
   }
 
+  // Stemmed comparison (see textNormalize.ts's `stem` doc comment): "engineer" / "engineering"
+  // / "engineers" all count as the same keyword here, so "Mechanical Engineering" on a
+  // profile satisfies a criterion written as "engineering background" (itself reduced to just
+  // the keyword "engineering" by significantKeywords' generic-qualifier stripping). Short,
+  // specific words like "mentor" are below the stemmer's length floor and are never affected.
+  const stemmedKeywords = keywords.map(stem);
   let bestPartial: { field: (typeof fields)[number]; matchedCount: number } | null = null;
 
   for (const field of fields) {
-    const fieldWords = new Set(normalizeText(field.text).split(" ").filter(Boolean));
-    const matchedCount = keywords.filter((keyword) => fieldWords.has(keyword)).length;
+    const fieldWords = new Set(normalizeText(field.text).split(" ").filter(Boolean).map(stem));
+    const matchedCount = stemmedKeywords.filter((keyword) => fieldWords.has(keyword)).length;
     if (matchedCount === keywords.length) {
       return {
         status: "MET_KEYWORDS",
