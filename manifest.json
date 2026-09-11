@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Finder",
-  "version": "0.1.0",
+  "name": "LinkWise",
+  "version": "0.2.0",
   "description": "A professional people discovery companion for LinkedIn.",
   "action": {
-    "default_title": "Finder"
+    "default_title": "LinkWise"
   },
   "background": {
     "service_worker": "background/index.js",
@@ -13,11 +13,11 @@
   "side_panel": {
     "default_path": "sidepanel/index.html"
   },
-  "permissions": ["sidePanel", "storage"],
+  "permissions": ["sidePanel", "storage", "scripting"],
   "host_permissions": ["https://*.linkedin.com/*"],
   "content_scripts": [
     {
-      "matches": ["https://*.linkedin.com/in/*"],
+      "matches": ["https://*.linkedin.com/*"],
       "js": ["content/linkedin.js"],
       "run_at": "document_idle"
     }

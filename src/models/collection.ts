@@ -8,12 +8,19 @@ export type CollectionStatus = "collecting" | "settled";
 
 export interface CollectionState {
   status: CollectionStatus;
-  /** Sections actually found so far, for progress display — never a checklist the profile is
-   * required to complete; some profiles genuinely lack a section forever. */
+  /** Sections whose content has actually been captured — the numerator of "Sections analyzed
+   * N / M". Never a checklist the profile is required to complete; some profiles genuinely
+   * lack a section forever. */
   sectionsFound: ProfileSectionName[];
-  /** Epoch ms of the last time the extracted profile actually changed — used to judge
-   * stability (see the quiet-period logic in linkedin/collectionEngine.ts), never a fixed
-   * page-load timer. */
+  /** Sections known to exist on this profile so far — a heading spotted in the DOM, or content
+   * already captured for it — the denominator of "Sections analyzed N / M". Always a superset
+   * of `sectionsFound`: a section can be detected (heading visible, content still loading)
+   * before it is found. Can grow as the user scrolls further; never shrinks back down to a
+   * fixed assumed total. */
+  sectionsDetected: ProfileSectionName[];
+  /** Epoch ms of the last time the extracted profile or detected sections actually changed —
+   * used to judge stability (see the quiet-period logic in linkedin/collectionEngine.ts),
+   * never a fixed page-load timer. */
   lastChangedAt: number;
   /** True once the user has scrolled at or near the bottom of the page. Required, alongside
    * the quiet period, before collection can be considered settled — lets the UI distinguish
@@ -22,5 +29,11 @@ export interface CollectionState {
 }
 
 export function initialCollectionState(now: number): CollectionState {
-  return { status: "collecting", sectionsFound: [], lastChangedAt: now, reachedDocumentEnd: false };
+  return {
+    status: "collecting",
+    sectionsFound: [],
+    sectionsDetected: [],
+    lastChangedAt: now,
+    reachedDocumentEnd: false,
+  };
 }

@@ -4,7 +4,17 @@ import { createCriterion, createGoal, type Goal } from "../models/goal";
 import type { LinkedInProfile } from "../models/profile";
 
 function makeProfile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
-  return { experience: [], education: [], skills: [], projects: [], extracted: true, ...overrides };
+  return {
+    experience: [],
+    education: [],
+    skills: [],
+    projects: [],
+    certifications: [],
+    organizations: [],
+    volunteering: [],
+    extracted: true,
+    ...overrides,
+  };
 }
 
 function makeGoal(name: string, criteria: Goal["criteria"]): Goal {
@@ -128,9 +138,37 @@ describe("scoreProfileAgainstGoal - determinism", () => {
 describe("scoreProfileAgainstGoal - honest incomplete state", () => {
   it("reports an unextracted profile as incomplete rather than a misleading percentage", () => {
     const goal = makeGoal("Test", [createCriterion("Python", "MUST_HAVE")]);
-    const profile: LinkedInProfile = { experience: [], education: [], skills: [], projects: [], extracted: false };
+    const profile: LinkedInProfile = {
+      experience: [],
+      education: [],
+      skills: [],
+      projects: [],
+      certifications: [],
+      organizations: [],
+      volunteering: [],
+      extracted: false,
+    };
     const result = scoreProfileAgainstGoal(goal, profile);
     expect(result.profileExtracted).toBe(false);
     expect(result.complete).toBe(false);
+  });
+});
+
+describe("scoreProfileAgainstGoal - changing the goal recalculates from the same evidence", () => {
+  it("produces a different, correct score against a different goal without re-collecting the profile", () => {
+    // The same profile object, collected exactly once — mirrors the in-page panel deriving
+    // `scoreProfileAgainstGoal(goal, profile)` fresh on every render rather than caching a
+    // score anywhere: switching goals must never require rereading the LinkedIn page.
+    const profile = makeProfile({ about: "I write Python and build robotics systems." });
+
+    const goalA = makeGoal("Python roles", [createCriterion("Python", "MUST_HAVE")]);
+    const resultA = scoreProfileAgainstGoal(goalA, profile);
+    expect(resultA.scorePercent).toBe(100);
+
+    const goalB = makeGoal("Java roles", [createCriterion("Java", "MUST_HAVE")]);
+    const resultB = scoreProfileAgainstGoal(goalB, profile);
+    expect(resultB.scorePercent).toBeLessThan(resultA.scorePercent!);
+    expect(resultB.missing).toHaveLength(1);
+    expect(resultB.missing[0].criterion.label).toBe("Java");
   });
 });

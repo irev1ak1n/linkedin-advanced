@@ -1,10 +1,17 @@
-// LinkedIn profile content script — the only place that turns "the page changed" into
-// collection updates. Reads only what LinkedIn has already rendered; never fetches another
-// page, never clicks anything, never scrolls or navigates on the user's behalf. Initializes on
-// any supported profile page and accumulates evidence as the user scrolls normally.
+// The LinkWise content script — injected on every linkedin.com page (see manifest.json), and
+// the home of the whole in-page panel (the panel's React tree is mounted from here — see
+// panel/mount.ts — sharing this same JS realm, so no chrome.runtime messaging is needed between
+// collection and the panel at all). The LinkWise opener is shown on every page; the collection
+// engine only ever does real work while the current URL is a `/in/...` profile — everywhere
+// else it simply stays idle (see collectionEngine.ts's `onLeaveProfile`). Reads only what
+// LinkedIn has already rendered; never fetches another page, never clicks anything, never
+// scrolls or navigates on the user's behalf.
 import { createCollectionEngine } from "./collectionEngine";
-import { extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
-import type { FinderMessage, ProfileResetMessage, ProfileUpdatedMessage } from "../messaging/protocol";
+import { detectProfileSections, extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
+import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
+import { getPanelProfileData, setPanelProfileData } from "./panel/panelStore";
+import { destroyPanel, togglePanel } from "./panel/mount";
+import { installDevTooling } from "./devTools";
 
 /** How close to the bottom of the page counts as "reached the end," in pixels — tolerates
  * LinkedIn's footer/recommendation chrome without requiring a scroll to the literal last pixel. */
@@ -18,67 +25,109 @@ const TICK_INTERVAL_MS = 2500;
  * is still caught faster by the mutation/scroll listeners below. */
 const SETTLED_TICK_INTERVAL_MS = 6000;
 
-function isNearDocumentEnd(): boolean {
-  const scrollBottom = window.scrollY + window.innerHeight;
-  return scrollBottom >= document.documentElement.scrollHeight - DOCUMENT_END_MARGIN_PX;
+declare global {
+  interface Window {
+    /** Set at the end of every run of this script; a fresh injection calls it before doing
+     * anything else. Content scripts re-injected into an already-open tab (a development
+     * reload via devTools.ts, or any future `chrome.scripting.executeScript` re-injection) get
+     * an entirely new JS realm with its own timers/observers/closures — nothing about a fresh
+     * injection can reach into a previous one to stop it, EXCEPT the one thing every injection
+     * shares: this same `window` object. Without this, reloading the extension while a tab is
+     * already open would leave the old instance's interval/MutationObserver running forever
+     * alongside the new one, and could leave a duplicate opener button or panel host behind. */
+    __linkwiseTeardown__?: () => void;
+  }
 }
 
-let contextInvalidated = false;
+window.__linkwiseTeardown__?.();
+const cleanupFns: (() => void)[] = [];
+function registerCleanup(fn: () => void): void {
+  cleanupFns.push(fn);
+}
 
-/** Reloading the extension orphans any content script already injected in an open tab —
- * `chrome.runtime` becomes undefined and `chrome.runtime.sendMessage(...)` throws synchronously,
- * before a `.catch()` can attach. Nothing useful to do at that point but stop trying. */
-function broadcast(message: FinderMessage): void {
-  if (contextInvalidated) return;
-  try {
-    // eslint-disable-next-line no-console
-    console.log("[Finder DEBUG] broadcasting", message.type);
-    chrome.runtime.sendMessage(message).catch(() => {
-      // The side panel may not be open right now — this is a best-effort proactive push; the
-      // panel also actively requests a fresh read on its own mount/tab-switch.
-    });
-  } catch {
-    contextInvalidated = true;
+function findScrollContainer(): Element {
+  const candidates = [document.scrollingElement, document.querySelector("main")].filter(
+    (el): el is Element => el != null, // `document.scrollingElement` can be undefined, not just null
+  );
+  for (const candidate of candidates) {
+    if (candidate.scrollHeight - candidate.clientHeight > 40) return candidate;
   }
+  return document.scrollingElement ?? document.documentElement;
+}
+
+/** LinkedIn's profile page does not always scroll the window/document itself — confirmed live,
+ * `document.body` can have `overflow-y: hidden` with the actual profile content scrolling
+ * inside `<main>` instead, which would make `window.scrollY`/`document.documentElement.
+ * scrollHeight` permanently report "already at the bottom" from the very first tick,
+ * regardless of real content or scrolling. `findScrollContainer` picks whichever real
+ * candidate actually has scrollable overflow right now, rather than hardcoding `<main>`. */
+function isNearDocumentEnd(): boolean {
+  const el = findScrollContainer();
+  return el.scrollTop + el.clientHeight >= el.scrollHeight - DOCUMENT_END_MARGIN_PX;
 }
 
 const engine = createCollectionEngine({
   now: () => Date.now(),
   extractProfile: () => extractLinkedInProfile(document),
+  detectSections: () => detectProfileSections(document),
   getProfileKey: () => profileIdentityKey(location.href),
   isNearDocumentEnd,
   onUpdate: (profileKey, profile, collection) => {
-    const message: ProfileUpdatedMessage = { type: "FINDER_PROFILE_UPDATED", profileKey, profile, collection };
-    broadcast(message);
+    setPanelProfileData({ profileKey, profile, collection });
   },
   onReset: (profileKey) => {
-    const message: ProfileResetMessage = { type: "FINDER_PROFILE_RESET", profileKey };
-    broadcast(message);
+    // A genuine navigation to a different profile — clear the displayed profile immediately so
+    // the panel never shows a moment of the previous person's evidence.
+    setPanelProfileData({ profileKey, profile: null, collection: null });
+  },
+  onLeaveProfile: () => {
+    // Navigated to a non-profile LinkedIn page (feed, jobs, search, …) — `profileKey: null` is
+    // what PanelApp reads to show its neutral "open a profile to analyze it" state instead of
+    // a stale scanning/analysis view for whoever was last viewed.
+    setPanelProfileData({ profileKey: null, profile: null, collection: null });
   },
 });
+
+/** The opener button is re-verified on every tick rather than injected only once, so it
+ * self-heals if LinkedIn's own SPA rendering were ever to remove it from `document.body`. */
+function tick(): void {
+  ensureLinkWiseOpener(togglePanel);
+  engine.tick();
+}
 
 function watchForChanges(): void {
   let debounceHandle: ReturnType<typeof setTimeout> | null = null;
   const scheduleTick = () => {
     if (debounceHandle) clearTimeout(debounceHandle);
-    debounceHandle = setTimeout(() => engine.tick(), MUTATION_DEBOUNCE_MS);
+    debounceHandle = setTimeout(tick, MUTATION_DEBOUNCE_MS);
   };
+  registerCleanup(() => {
+    if (debounceHandle) clearTimeout(debounceHandle);
+  });
 
   // Debounced: covers both new content loading in as the user scrolls and LinkedIn's own
   // client-side navigation to a different profile.
-  new MutationObserver(scheduleTick).observe(document.body, { childList: true, subtree: true });
+  const observer = new MutationObserver(scheduleTick);
+  observer.observe(document.body, { childList: true, subtree: true });
+  registerCleanup(() => observer.disconnect());
 
   // Scroll position matters for "has the user reached the end" independent of DOM mutations.
+  // A scroll inside an inner container (see findScrollContainer above) never bubbles to
+  // window, but a capture-phase listener on `document` still observes it regardless of which
+  // element actually scrolls — covers both LinkedIn's inner-container layout and a plain
+  // window-scrolling page, without needing to know in advance which one applies.
   window.addEventListener("scroll", scheduleTick, { passive: true });
+  registerCleanup(() => window.removeEventListener("scroll", scheduleTick));
+  document.addEventListener("scroll", scheduleTick, { passive: true, capture: true });
+  registerCleanup(() => document.removeEventListener("scroll", scheduleTick, true));
 
   // Periodic safety net: catches the settle transition, which depends on elapsed quiet time
   // rather than any mutation or scroll event firing on its own.
   let intervalHandle = setInterval(runIntervalTick, TICK_INTERVAL_MS);
+  registerCleanup(() => clearInterval(intervalHandle));
   function runIntervalTick(): void {
     const wasSettled = engine.getCollectionState().status === "settled";
-    // eslint-disable-next-line no-console
-    console.log("[Finder DEBUG] interval tick", new Date().toLocaleTimeString());
-    engine.tick();
+    tick();
     const isSettled = engine.getCollectionState().status === "settled";
     if (isSettled !== wasSettled) {
       clearInterval(intervalHandle);
@@ -87,24 +136,12 @@ function watchForChanges(): void {
   }
 }
 
-chrome.runtime.onMessage.addListener((message: FinderMessage, _sender, sendResponse) => {
-  if (message.type === "FINDER_REQUEST_PROFILE") {
-    const collection = engine.getCollectionState();
-    // eslint-disable-next-line no-console
-    console.log("[Finder DEBUG] responding to FINDER_REQUEST_PROFILE", {
-      sectionsFound: collection.sectionsFound,
-      status: collection.status,
-    });
-    sendResponse({
-      profileKey: engine.getProfileKey(),
-      profile: extractLinkedInProfile(document),
-      collection,
-    });
-  }
-  return false;
-});
-
-// eslint-disable-next-line no-console
-console.log("[Finder DEBUG] content script injected", location.href);
-engine.tick();
+tick();
 watchForChanges();
+registerCleanup(installDevTooling(() => getPanelProfileData()));
+
+window.__linkwiseTeardown__ = () => {
+  cleanupFns.forEach((fn) => fn());
+  removeLinkWiseOpener();
+  destroyPanel();
+};

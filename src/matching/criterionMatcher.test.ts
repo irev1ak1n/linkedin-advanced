@@ -4,7 +4,17 @@ import { createCriterion } from "../models/goal";
 import type { LinkedInProfile } from "../models/profile";
 
 function makeProfile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
-  return { experience: [], education: [], skills: [], projects: [], extracted: true, ...overrides };
+  return {
+    experience: [],
+    education: [],
+    skills: [],
+    projects: [],
+    certifications: [],
+    organizations: [],
+    volunteering: [],
+    extracted: true,
+    ...overrides,
+  };
 }
 
 describe("matchCriterionAgainstProfile - exact phrase", () => {

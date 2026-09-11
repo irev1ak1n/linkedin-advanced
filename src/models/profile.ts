@@ -15,31 +15,44 @@ export interface ProfileEducationEntry {
   field?: string;
 }
 
-export interface ProfileProjectEntry {
+/** A generic named/described entry — used for the several profile sections (Projects,
+ * Certifications, Organizations, Volunteering) that all render as either a list of short
+ * "name + optional description" items or, when LinkedIn doesn't expose per-item structure,
+ * one blob of section text. */
+export interface ProfileListEntry {
   name?: string;
   description?: string;
 }
 
+export type ProfileProjectEntry = ProfileListEntry;
+export type ProfileCertificationEntry = ProfileListEntry;
+export type ProfileOrganizationEntry = ProfileListEntry;
+export type ProfileVolunteeringEntry = ProfileListEntry;
+
 /** Every section the adapter knows how to look for — used purely for progress display (“About
  * found, still watching for Education”), never to demand a profile contain all of them. A
- * profile missing a section here is simply a profile without that section, not an error. */
+ * profile missing a section here is simply a profile without that section, not an error.
+ * Deliberately excludes identity fields (headline, location) that live in the top card rather
+ * than a real LinkedIn "section" with its own heading. */
 export type ProfileSectionName =
-  | "headline"
-  | "location"
   | "about"
   | "experience"
   | "education"
   | "skills"
-  | "projects";
+  | "projects"
+  | "certifications"
+  | "organizations"
+  | "volunteering";
 
 export const ALL_PROFILE_SECTIONS: ProfileSectionName[] = [
-  "headline",
-  "location",
   "about",
   "experience",
   "education",
   "skills",
   "projects",
+  "certifications",
+  "organizations",
+  "volunteering",
 ];
 
 export interface LinkedInProfile {
@@ -51,6 +64,9 @@ export interface LinkedInProfile {
   education: ProfileEducationEntry[];
   skills: string[];
   projects: ProfileProjectEntry[];
+  certifications: ProfileCertificationEntry[];
+  organizations: ProfileOrganizationEntry[];
+  volunteering: ProfileVolunteeringEntry[];
   /**
    * True once the adapter found at least a name or headline on the page — lets callers tell
    * "this is a real, at-least-partially-read profile" apart from "nothing could be read at
@@ -64,6 +80,9 @@ export const EMPTY_PROFILE: LinkedInProfile = {
   education: [],
   skills: [],
   projects: [],
+  certifications: [],
+  organizations: [],
+  volunteering: [],
   extracted: false,
 };
 
@@ -72,13 +91,14 @@ export const EMPTY_PROFILE: LinkedInProfile = {
  * information"; some profiles genuinely have no Projects section, for example. */
 export function foundSections(profile: LinkedInProfile): ProfileSectionName[] {
   const found: ProfileSectionName[] = [];
-  if (profile.headline) found.push("headline");
-  if (profile.location) found.push("location");
   if (profile.about) found.push("about");
   if (profile.experience.length > 0) found.push("experience");
   if (profile.education.length > 0) found.push("education");
   if (profile.skills.length > 0) found.push("skills");
   if (profile.projects.length > 0) found.push("projects");
+  if (profile.certifications.length > 0) found.push("certifications");
+  if (profile.organizations.length > 0) found.push("organizations");
+  if (profile.volunteering.length > 0) found.push("volunteering");
   return found;
 }
 
@@ -117,6 +137,24 @@ export function profileTextFields(profile: LinkedInProfile): ProfileTextField[] 
     const parts = [entry.name, entry.description].filter(Boolean);
     if (parts.length > 0) {
       fields.push({ label: `Project${entry.name ? `: ${entry.name}` : ""}`, text: parts.join(" — ") });
+    }
+  }
+  for (const entry of profile.certifications) {
+    const parts = [entry.name, entry.description].filter(Boolean);
+    if (parts.length > 0) {
+      fields.push({ label: `Certification${entry.name ? `: ${entry.name}` : ""}`, text: parts.join(" — ") });
+    }
+  }
+  for (const entry of profile.organizations) {
+    const parts = [entry.name, entry.description].filter(Boolean);
+    if (parts.length > 0) {
+      fields.push({ label: `Organization${entry.name ? `: ${entry.name}` : ""}`, text: parts.join(" — ") });
+    }
+  }
+  for (const entry of profile.volunteering) {
+    const parts = [entry.name, entry.description].filter(Boolean);
+    if (parts.length > 0) {
+      fields.push({ label: `Volunteering${entry.name ? `: ${entry.name}` : ""}`, text: parts.join(" — ") });
     }
   }
   return fields;

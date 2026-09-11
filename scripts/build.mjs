@@ -59,10 +59,14 @@ async function buildLinkedInContentScript() {
   // Manifest V3 `content_scripts` entries cannot be ES modules (unlike the background
   // service worker, which explicitly opts into `"type": "module"`) — Chrome loads them as
   // classic scripts. `formats: ["iife"]` produces a single self-contained script with no
-  // external imports, which is what a manifest-declared content script requires.
+  // external imports, which is what a manifest-declared content script requires. Now also
+  // needs the React plugin: the in-page LinkWise panel (linkedin/panel/) renders its own React
+  // tree inside this same content-script bundle, sharing a JS realm with the collection engine
+  // instead of talking to it over chrome.runtime messaging.
   await build({
     root,
     configFile: false,
+    plugins: [react()],
     define: nodeEnvDefine(watch ? "development" : "production"),
     build: {
       outDir: path.join(root, "dist/content"),

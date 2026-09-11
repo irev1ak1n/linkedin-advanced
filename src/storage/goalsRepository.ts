@@ -5,6 +5,11 @@ import { defaultGoals, type Goal } from "../models/goal";
 
 const STORAGE_KEY = "finder.goals.v1";
 const SEEDED_KEY = "finder.goalsSeeded.v1";
+const SELECTED_GOAL_KEY = "finder.selectedGoalId.v1";
+
+/** Exported so other contexts (the in-page LinkWise panel) can watch these exact keys via
+ * `chrome.storage.onChanged` without duplicating the literal strings. */
+export const GOALS_STORAGE_KEYS = { goals: STORAGE_KEY, selectedGoalId: SELECTED_GOAL_KEY };
 
 interface GoalsStorageShape {
   [STORAGE_KEY]?: Goal[];
@@ -27,10 +32,10 @@ export async function saveGoals(goals: Goal[]): Promise<void> {
 }
 
 export async function loadSelectedGoalId(): Promise<string | undefined> {
-  const stored = await chrome.storage.local.get("finder.selectedGoalId.v1");
-  return stored["finder.selectedGoalId.v1"] as string | undefined;
+  const stored = await chrome.storage.local.get(SELECTED_GOAL_KEY);
+  return stored[SELECTED_GOAL_KEY] as string | undefined;
 }
 
 export async function saveSelectedGoalId(goalId: string): Promise<void> {
-  await chrome.storage.local.set({ "finder.selectedGoalId.v1": goalId });
+  await chrome.storage.local.set({ [SELECTED_GOAL_KEY]: goalId });
 }

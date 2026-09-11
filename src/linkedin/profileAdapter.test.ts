@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
+import { detectProfileSections, extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
 
 function setBody(html: string): void {
   document.body.innerHTML = html;
@@ -61,6 +61,32 @@ function setFullProfilePage(): void {
           </li>
         </ul>
       </section>
+      <section>
+        <h2>Licenses &amp; certifications</h2>
+        <ul>
+          <li>
+            <span aria-hidden="true">FIRST Robotics Certified Mentor</span>
+            <span aria-hidden="true">FIRST Robotics Competition</span>
+          </li>
+        </ul>
+      </section>
+      <section>
+        <h2>Organizations</h2>
+        <ul>
+          <li>
+            <span aria-hidden="true">IEEE Robotics and Automation Society</span>
+          </li>
+        </ul>
+      </section>
+      <section>
+        <h2>Volunteering</h2>
+        <ul>
+          <li>
+            <span aria-hidden="true">Robotics Camp Volunteer</span>
+            <span aria-hidden="true">Coached middle schoolers in a summer robotics camp for underserved students.</span>
+          </li>
+        </ul>
+      </section>
     </main>
   `);
 }
@@ -112,6 +138,49 @@ describe("extractLinkedInProfile - full profile", () => {
     expect(profile.projects[0].description).toContain("FRC scrimmage");
   });
 
+  it("extracts certifications, matching the real-world 'Licenses & certifications' heading", () => {
+    setFullProfilePage();
+    const profile = extractLinkedInProfile(document);
+    expect(profile.certifications).toHaveLength(1);
+    expect(profile.certifications[0].name).toBe("FIRST Robotics Certified Mentor");
+  });
+
+  it("extracts organizations", () => {
+    setFullProfilePage();
+    const profile = extractLinkedInProfile(document);
+    expect(profile.organizations).toHaveLength(1);
+    expect(profile.organizations[0].name).toBe("IEEE Robotics and Automation Society");
+  });
+
+  it("extracts volunteering", () => {
+    setFullProfilePage();
+    const profile = extractLinkedInProfile(document);
+    expect(profile.volunteering).toHaveLength(1);
+    expect(profile.volunteering[0].name).toBe("Robotics Camp Volunteer");
+    expect(profile.volunteering[0].description).toContain("summer robotics camp");
+  });
+
+  it("never returns a mutual connection's bare connection-degree badge as the headline", () => {
+    // Confirmed live: the identity-card container can widen to include the "mutual
+    // connections" widget, whose entries carry their own "· 1st"/"· 2nd" badges — short plain
+    // text that would otherwise satisfy the generic headline filter before the real headline
+    // (later in document order here) is ever reached.
+    setBody(`
+      <main role="main">
+        <section>
+          <h1><span aria-hidden="true">Aaryan Gupta</span></h1>
+          <span>· 2nd</span>
+          <span>· 1st</span>
+          <span>· 1st</span>
+          <div><span aria-hidden="true">Incoming Freshman at Duke University</span></div>
+          <span>Charlotte, North Carolina, United States</span>
+        </section>
+      </main>
+    `);
+    const profile = extractLinkedInProfile(document);
+    expect(profile.headline).toBe("Incoming Freshman at Duke University");
+  });
+
   it("never doubles text that has both an aria-hidden copy and a screen-reader-only copy", () => {
     setBody(`
       <main role="main">
@@ -143,6 +212,62 @@ describe("extractLinkedInProfile - incomplete or non-profile pages", () => {
     expect(profile.experience).toEqual([]);
     expect(profile.education).toEqual([]);
     expect(profile.skills).toEqual([]);
+  });
+});
+
+describe("detectProfileSections", () => {
+  it("detects every section heading present on a full profile", () => {
+    setFullProfilePage();
+    const detected = detectProfileSections(document);
+    expect(detected).toEqual(
+      expect.arrayContaining([
+        "about",
+        "experience",
+        "education",
+        "skills",
+        "projects",
+        "certifications",
+        "organizations",
+        "volunteering",
+      ]),
+    );
+  });
+
+  it("detects a section heading even when its body content hasn't rendered yet", () => {
+    setBody(`
+      <main role="main">
+        <section>
+          <h1><span aria-hidden="true">Jordan Rivera</span></h1>
+        </section>
+        <section>
+          <h2>Education</h2>
+        </section>
+      </main>
+    `);
+    const profile = extractLinkedInProfile(document);
+    const detected = detectProfileSections(document);
+    expect(profile.education).toEqual([]); // no content captured yet
+    expect(detected).toContain("education"); // but the heading is already visible
+  });
+
+  it("detects skills via the compact 'Top skills' widget even with no Skills heading", () => {
+    setBody(`
+      <main role="main">
+        <section>
+          <h1><span aria-hidden="true">Jordan Rivera</span></h1>
+        </section>
+        <div>
+          <p>Top skills</p>
+          <div>Python • Robotics • Mentoring</div>
+        </div>
+      </main>
+    `);
+    expect(detectProfileSections(document)).toContain("skills");
+  });
+
+  it("detects nothing beyond identity on a sparse profile with no sections at all", () => {
+    setBody('<main role="main"><h1><span aria-hidden="true">Jordan Rivera</span></h1></main>');
+    expect(detectProfileSections(document)).toEqual([]);
   });
 });
 

@@ -11,11 +11,30 @@ import {
   type LinkedInProfile,
   type ProfileEducationEntry,
   type ProfileExperienceEntry,
-  type ProfileProjectEntry,
+  type ProfileListEntry,
+  type ProfileSectionName,
 } from "../models/profile";
 
-const SECTION_HEADINGS = ["about", "experience", "education", "skills", "projects"] as const;
-type SectionName = (typeof SECTION_HEADINGS)[number];
+/** How each known section's heading text is recognized. Most sections use LinkedIn's exact,
+ * single-word heading; a few (Certifications, Organizations, Volunteering) render under
+ * several real-world heading variants ("Licenses & certifications", "Volunteer Experience"),
+ * so those match by substring instead of exact equality. One shared table drives both content
+ * extraction (`findHeadingSection`) and section *detection* (`detectProfileSections`), so the
+ * two can never drift apart. */
+const SECTION_MATCHERS: { name: ProfileSectionName; matches: (headingText: string) => boolean }[] = [
+  { name: "about", matches: (t) => t === "about" },
+  { name: "experience", matches: (t) => t === "experience" },
+  { name: "education", matches: (t) => t === "education" },
+  { name: "skills", matches: (t) => t === "skills" },
+  { name: "projects", matches: (t) => t === "projects" },
+  { name: "certifications", matches: (t) => t.includes("certification") || t.includes("license") },
+  { name: "organizations", matches: (t) => t.includes("organization") },
+  { name: "volunteering", matches: (t) => t.includes("volunteer") },
+];
+
+function matcherFor(name: ProfileSectionName): (headingText: string) => boolean {
+  return SECTION_MATCHERS.find((m) => m.name === name)!.matches;
+}
 
 function cleanText(text: string | null | undefined): string | undefined {
   const trimmed = text?.replace(/\s+/g, " ").trim();
@@ -40,8 +59,9 @@ function findMain(doc: Document): HTMLElement {
 /** Headings are queried once by the caller and passed in here — five separate full-subtree
  * traversals (one per section) visibly degraded page responsiveness when extraction ran
  * repeatedly on every scroll/mutation tick. */
-function findHeadingSection(headings: HTMLElement[], heading: SectionName): HTMLElement | null {
-  const match = headings.find((el) => (el.textContent ?? "").trim().toLowerCase() === heading);
+function findHeadingSection(headings: HTMLElement[], name: ProfileSectionName): HTMLElement | null {
+  const matches = matcherFor(name);
+  const match = headings.find((el) => matches((el.textContent ?? "").trim().toLowerCase()));
   if (!match) return null;
   // The section content lives in a shared ancestor with the heading — walk up to the nearest
   // <section>, falling back to a bounded ancestor walk if LinkedIn doesn't use <section> here.
@@ -93,6 +113,15 @@ function findIdentityCardContainer(heading: HTMLElement): HTMLElement | null {
   return heading.parentElement;
 }
 
+/** A bare connection-degree badge ("· 1st", "2nd", "3rd+") — LinkedIn's own UI chrome, never a
+ * real headline. Confirmed live: the identity-card container can also include the "mutual
+ * connections" widget, whose entries carry THEIR OWN degree badges as plain short text — those
+ * would otherwise satisfy `extractHeadline`'s generic "short plain text block" filter and get
+ * returned before the real headline is ever reached. */
+function isConnectionDegreeBadge(text: string): boolean {
+  return /^[·•]?\s*(1st|2nd|3rd)\+?$/i.test(text.trim());
+}
+
 /** The headline sits just below the name, as a short (non-list, non-button) text block —
  * distinguished from surrounding chrome by being plain text without interactive children. */
 function extractHeadline(main: HTMLElement): string | undefined {
@@ -107,7 +136,7 @@ function extractHeadline(main: HTMLElement): string | undefined {
   for (const el of candidates) {
     if (el.querySelector("h1, h2, button, a, ul, li")) continue;
     const text = visibleText(el);
-    if (text && text.length >= 3 && text.length <= 220 && text !== name) {
+    if (text && text.length >= 3 && text.length <= 220 && text !== name && !isConnectionDegreeBadge(text)) {
       return text;
     }
   }
@@ -134,28 +163,15 @@ function extractLocation(main: HTMLElement, headline: string | undefined): strin
 
 function extractAbout(headings: HTMLElement[]): string | undefined {
   const section = findHeadingSection(headings, "about");
-  if (!section) return undefined;
-
-  // The body text's own wrapping element varies (a bare `<span>`, sometimes with
-  // `aria-hidden="true"`, sometimes without) — rather than depend on one exact shape,
-  // take the section's full text and strip the heading's own "About" prefix from it,
-  // which works regardless of how the body itself is wrapped.
-  const heading = Array.from(section.querySelectorAll<HTMLElement>("h2, h3")).find(
-    (h) => (h.textContent ?? "").trim().toLowerCase() === "about",
-  );
-  const headingText = (heading?.textContent ?? "").trim();
-  let text = (section.textContent ?? "").trim();
-  if (headingText && text.startsWith(headingText)) {
-    text = text.slice(headingText.length);
-  }
-  return cleanText(text.replace(/…\s*see more/i, ""));
+  return section ? sectionBodyText(section, "about") : undefined;
 }
 
 /** Strips a section's own heading text from its full text content — the same technique
- * `extractAbout` uses, factored out since Experience/Education need it too. */
-function sectionBodyText(section: HTMLElement, headingLabel: string): string | undefined {
-  const heading = Array.from(section.querySelectorAll<HTMLElement>("h2, h3")).find(
-    (h) => (h.textContent ?? "").trim().toLowerCase() === headingLabel,
+ * `extractAbout` uses, factored out since the other list-style sections need it too. */
+function sectionBodyText(section: HTMLElement, name: ProfileSectionName): string | undefined {
+  const matches = matcherFor(name);
+  const heading = Array.from(section.querySelectorAll<HTMLElement>("h2, h3")).find((h) =>
+    matches((h.textContent ?? "").trim().toLowerCase()),
   );
   const headingText = (heading?.textContent ?? "").trim();
   let text = (section.textContent ?? "").trim();
@@ -228,14 +244,16 @@ function extractEducation(headings: HTMLElement[]): ProfileEducationEntry[] {
 }
 
 /** Same "try `<li>` first, fall back to the section's blob text" shape as Experience/Education
- * — projects render identically inconsistently across profiles. */
-function extractProjects(headings: HTMLElement[]): ProfileProjectEntry[] {
-  const section = findHeadingSection(headings, "projects");
+ * — shared by every section (Projects, Certifications, Organizations, Volunteering) that is
+ * just a list of short "name + optional description" entries, since they all render with the
+ * same inconsistent structure across profiles. */
+function extractListEntries(headings: HTMLElement[], name: ProfileSectionName): ProfileListEntry[] {
+  const section = findHeadingSection(headings, name);
   if (!section) return [];
 
   const items = Array.from(section.querySelectorAll<HTMLElement>("li"));
   if (items.length > 0) {
-    const entries: ProfileProjectEntry[] = [];
+    const entries: ProfileListEntry[] = [];
     for (const item of items) {
       const textLines = Array.from(item.querySelectorAll<HTMLElement>("span[aria-hidden='true'], div, span"))
         .map((el) => visibleText(el))
@@ -243,15 +261,15 @@ function extractProjects(headings: HTMLElement[]): ProfileProjectEntry[] {
       const unique = [...new Set(textLines)];
       if (unique.length === 0) continue;
 
-      const [name, ...rest] = unique;
+      const [entryName, ...rest] = unique;
       const description = rest.find((line) => line.length > 20);
-      const entry: ProfileProjectEntry = { name: cleanText(name), description: cleanText(description) };
+      const entry: ProfileListEntry = { name: cleanText(entryName), description: cleanText(description) };
       if (entry.name || entry.description) entries.push(entry);
     }
     if (entries.length > 0) return entries;
   }
 
-  const body = sectionBodyText(section, "projects");
+  const body = sectionBodyText(section, name);
   return body ? [{ description: body }] : [];
 }
 
@@ -318,12 +336,46 @@ export function extractLinkedInProfile(doc: Document = document): LinkedInProfil
   const experience = extractExperience(headings);
   const education = extractEducation(headings);
   const skills = extractSkills(main, headings);
-  const projects = extractProjects(headings);
+  const projects = extractListEntries(headings, "projects");
+  const certifications = extractListEntries(headings, "certifications");
+  const organizations = extractListEntries(headings, "organizations");
+  const volunteering = extractListEntries(headings, "volunteering");
 
   const extracted = Boolean(name || headline);
   if (!extracted) return { ...EMPTY_PROFILE };
 
-  return { name, headline, location, about, experience, education, skills, projects, extracted };
+  return {
+    name,
+    headline,
+    location,
+    about,
+    experience,
+    education,
+    skills,
+    projects,
+    certifications,
+    organizations,
+    volunteering,
+    extracted,
+  };
+}
+
+/**
+ * Which known sections currently have a heading visible in the DOM, independent of whether
+ * their body text has been successfully captured yet — a section can be detected (its heading
+ * scrolled into view, content still lazy-loading) slightly before it is "found" (see
+ * `foundSections`). Also recognizes the compact "Top skills" widget, which has no `h2`/`h3`
+ * heading of its own. Used only for honest collection-progress display, never to change what
+ * gets extracted. */
+export function detectProfileSections(doc: Document = document): ProfileSectionName[] {
+  const main = findMain(doc);
+  const headings = Array.from(main.querySelectorAll<HTMLElement>("h2, h3"));
+  const detected: ProfileSectionName[] = [];
+  for (const { name, matches } of SECTION_MATCHERS) {
+    if (headings.some((el) => matches((el.textContent ?? "").trim().toLowerCase()))) detected.push(name);
+  }
+  if (!detected.includes("skills") && extractTopSkillsWidget(main).length > 0) detected.push("skills");
+  return detected;
 }
 
 /**
