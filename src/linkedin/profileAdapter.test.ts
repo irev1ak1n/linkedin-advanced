@@ -181,6 +181,25 @@ describe("extractLinkedInProfile - full profile", () => {
     expect(profile.headline).toBe("Incoming Freshman at Duke University");
   });
 
+  it("never returns a pronoun badge as the headline (confirmed live on a real profile)", () => {
+    // Confirmed live on a real LinkedIn profile: the "She/Her" pronoun badge sits in the
+    // identity card ABOVE the real headline in document order, as its own short plain-text
+    // span — without filtering it out, the evidence layer built its whole analysis around
+    // "She/Her" as the person's headline instead of their actual one.
+    setBody(`
+      <main role="main">
+        <section>
+          <h1><span aria-hidden="true">Jordan Rivera</span></h1>
+          <span>She/Her</span>
+          <span>· 2nd</span>
+          <div><span aria-hidden="true">Mechanical Engineering Student | University of Michigan</span></div>
+        </section>
+      </main>
+    `);
+    const profile = extractLinkedInProfile(document);
+    expect(profile.headline).toBe("Mechanical Engineering Student | University of Michigan");
+  });
+
   it("never doubles text that has both an aria-hidden copy and a screen-reader-only copy", () => {
     setBody(`
       <main role="main">

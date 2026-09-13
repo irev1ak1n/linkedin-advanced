@@ -30,6 +30,7 @@ const SECTION_MATCHERS: { name: ProfileSectionName; matches: (headingText: strin
   { name: "certifications", matches: (t) => t.includes("certification") || t.includes("license") },
   { name: "organizations", matches: (t) => t.includes("organization") },
   { name: "volunteering", matches: (t) => t.includes("volunteer") },
+  { name: "languages", matches: (t) => t.includes("language") },
 ];
 
 function matcherFor(name: ProfileSectionName): (headingText: string) => boolean {
@@ -122,6 +123,41 @@ function isConnectionDegreeBadge(text: string): boolean {
   return /^[·•]?\s*(1st|2nd|3rd)\+?$/i.test(text.trim());
 }
 
+/** Pronoun words LinkedIn's own "She/Her"-style badge is built from — confirmed live: this
+ * badge sits in the identity card ABOVE the real headline in DOM order, as its own short plain
+ * text span, so without this filter `extractHeadline`'s generic "short plain text block"
+ * heuristic returned "She/Her" as the headline instead of the person's real one. Every
+ * slash-separated part of the candidate text must be a recognized pronoun word — a real
+ * headline containing a slash (e.g. "Software Engineer / Robotics Mentor") has multi-word parts
+ * that can never all match, so this can't accidentally swallow one. */
+const PRONOUN_WORDS = new Set([
+  "he",
+  "him",
+  "his",
+  "she",
+  "her",
+  "hers",
+  "they",
+  "them",
+  "theirs",
+  "ze",
+  "zir",
+  "hir",
+  "xe",
+  "xem",
+  "per",
+  "pers",
+]);
+
+function isPronounBadge(text: string): boolean {
+  const trimmed = text.trim();
+  if (!/^[a-z]+(\/[a-z]+){1,3}$/i.test(trimmed)) return false;
+  return trimmed
+    .toLowerCase()
+    .split("/")
+    .every((part) => PRONOUN_WORDS.has(part));
+}
+
 /** The headline sits just below the name, as a short (non-list, non-button) text block —
  * distinguished from surrounding chrome by being plain text without interactive children. */
 function extractHeadline(main: HTMLElement): string | undefined {
@@ -136,7 +172,14 @@ function extractHeadline(main: HTMLElement): string | undefined {
   for (const el of candidates) {
     if (el.querySelector("h1, h2, button, a, ul, li")) continue;
     const text = visibleText(el);
-    if (text && text.length >= 3 && text.length <= 220 && text !== name && !isConnectionDegreeBadge(text)) {
+    if (
+      text &&
+      text.length >= 3 &&
+      text.length <= 220 &&
+      text !== name &&
+      !isConnectionDegreeBadge(text) &&
+      !isPronounBadge(text)
+    ) {
       return text;
     }
   }
@@ -340,6 +383,7 @@ export function extractLinkedInProfile(doc: Document = document): LinkedInProfil
   const certifications = extractListEntries(headings, "certifications");
   const organizations = extractListEntries(headings, "organizations");
   const volunteering = extractListEntries(headings, "volunteering");
+  const languages = extractListEntries(headings, "languages");
 
   const extracted = Boolean(name || headline);
   if (!extracted) return { ...EMPTY_PROFILE };
@@ -356,6 +400,7 @@ export function extractLinkedInProfile(doc: Document = document): LinkedInProfil
     certifications,
     organizations,
     volunteering,
+    languages,
     extracted,
   };
 }

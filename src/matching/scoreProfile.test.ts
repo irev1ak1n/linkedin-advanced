@@ -12,6 +12,7 @@ function makeProfile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
     certifications: [],
     organizations: [],
     volunteering: [],
+    languages: [],
     extracted: true,
     ...overrides,
   };
@@ -146,11 +147,114 @@ describe("scoreProfileAgainstGoal - honest incomplete state", () => {
       certifications: [],
       organizations: [],
       volunteering: [],
+      languages: [],
       extracted: false,
     };
     const result = scoreProfileAgainstGoal(goal, profile);
     expect(result.profileExtracted).toBe(false);
     expect(result.complete).toBe(false);
+  });
+});
+
+describe("scoreProfileAgainstGoal - a missing Must Have cannot be bought back by Optional matches", () => {
+  it("keeps a Strong Match out of reach when the Must Have is unconfirmed, no matter how many Optionals hit", () => {
+    const goal = makeGoal("Test", [
+      createCriterion("FRC mentor", "MUST_HAVE"),
+      createCriterion("Python", "OPTIONAL"),
+      createCriterion("robotics", "OPTIONAL"),
+      createCriterion("leadership", "OPTIONAL"),
+      createCriterion("Charlotte", "OPTIONAL"),
+    ]);
+    const profile = makeProfile({
+      about: "I write Python, build robotics systems, and led my school's robotics club.",
+      location: "Charlotte, North Carolina",
+    });
+    const result = scoreProfileAgainstGoal(goal, profile);
+    // Every Optional criterion is confirmed, but the Must Have never resolves to strong/moderate —
+    // 55% of the total weight is capped near 0, so 100% is mathematically unreachable and 70%+
+    // (a Strong Match) should be as well.
+    expect(result.scorePercent).toBeLessThan(70);
+    expect(result.complete).toBe(false);
+  });
+});
+
+describe("scoreProfileAgainstGoal - multiple missing Must Haves make a Strong Match impossible", () => {
+  it("keeps a Strong Match (70+) out of reach when two of two Must Haves are unconfirmed", () => {
+    const goal = makeGoal("Test", [
+      createCriterion("FRC mentor", "MUST_HAVE"),
+      createCriterion("professional software experience", "MUST_HAVE"),
+      createCriterion("Python", "OPTIONAL"),
+    ]);
+    const profile = makeProfile({ about: "I'm a student who enjoys coding in Python as a hobby." });
+    const result = scoreProfileAgainstGoal(goal, profile);
+    expect(result.scorePercent).toBeLessThan(70);
+    expect(result.complete).toBe(false);
+  });
+});
+
+describe("scoreProfileAgainstGoal - Excluded requires strong confirmed evidence to disqualify", () => {
+  it("does not disqualify on merely moderate/weak evidence of the excluded trait", () => {
+    const goal = makeGoal("Test", [
+      createCriterion("engineering", "PREFERRED"),
+      createCriterion("recruiter", "EXCLUDED"),
+    ]);
+    // "Talent Acquisition Specialist" is related to recruiting but is not the literal word
+    // "recruiter" nor a pattern-matched role marker for it — at most weak/moderate evidence.
+    const profile = makeProfile({ headline: "Talent Acquisition Specialist", about: "Background in engineering." });
+    const result = scoreProfileAgainstGoal(goal, profile);
+    expect(result.disqualified).toBe(false);
+  });
+});
+
+describe("scoreProfileAgainstGoal - sparse profile reports low confidence, not a false precise score", () => {
+  it("gives low confidence when only a headline has been read", () => {
+    const goal = makeGoal("Test", [
+      createCriterion("engineering background", "MUST_HAVE"),
+      createCriterion("robotics", "PREFERRED"),
+    ]);
+    const profile = makeProfile({ headline: "Jordan Rivera" });
+    const result = scoreProfileAgainstGoal(goal, profile);
+    expect(result.confidence).toBeLessThan(0.5);
+  });
+
+  it("gives high confidence when the full profile has been read", () => {
+    const goal = makeGoal("Test", [
+      createCriterion("engineering background", "MUST_HAVE"),
+      createCriterion("robotics", "PREFERRED"),
+    ]);
+    const profile = makeProfile({
+      education: [{ school: "Duke University", degree: "B.S. Mechanical Engineering" }],
+      about: "I build robotics systems.",
+    });
+    const result = scoreProfileAgainstGoal(goal, profile);
+    expect(result.confidence).toBe(1);
+  });
+});
+
+describe("scoreProfileAgainstGoal - the exact same profile scores very differently under two different goals", () => {
+  it("mirrors the mission's own worked example: high for one goal, low for an unrelated one", () => {
+    const profile = makeProfile({
+      headline: "AI Research Assistant",
+      about: "I collaborate on machine learning research projects and love working with AI teams.",
+      experience: [{ title: "AI Research Assistant", company: "State University Lab", description: "Full-time research on machine learning models." }],
+      education: [{ school: "State University", degree: "B.S. Computer Science" }],
+    });
+
+    const aiGoal = makeGoal("AI collaborator", [
+      createCriterion("machine learning", "MUST_HAVE"),
+      createCriterion("AI", "PREFERRED"),
+    ]);
+    const frcGoal = makeGoal("FRC mentor", [
+      createCriterion("FRC mentor", "MUST_HAVE"),
+      createCriterion("robotics", "PREFERRED"),
+    ]);
+
+    const aiResult = scoreProfileAgainstGoal(aiGoal, profile);
+    const frcResult = scoreProfileAgainstGoal(frcGoal, profile);
+
+    expect(aiResult.scorePercent!).toBeGreaterThan(70);
+    expect(frcResult.scorePercent!).toBeLessThan(40);
+    expect(aiResult.scorePercent!).toBeGreaterThan(frcResult.scorePercent!);
   });
 });
 

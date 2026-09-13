@@ -1,62 +1,103 @@
+import { useMemo } from "react";
 import type { MatchResult } from "../../matching/scoreProfile";
-import { matchLevel, MATCH_LEVEL_LABELS } from "../../matching/matchLevel";
-import { buildMatchBreakdown } from "../../matching/analysisBreakdown";
-import { assessTitleAlignment } from "../../matching/titleAlignment";
+import { matchDisplayColor, matchDisplayLabel, matchDisplayState } from "../../matching/matchColors";
+import { buildProfileAnalysis, EXPERIENCE_LEVEL_LABELS } from "../../matching/profileAnalysis";
+import { buildContactGuidance } from "../../matching/contactGuidance";
+import { buildProfileEvidence } from "../../evidence/buildProfileEvidence";
+import type { Goal } from "../../models/goal";
 import type { LinkedInProfile } from "../../models/profile";
 
 interface AnalysisViewProps {
   result: MatchResult;
-  goalName: string;
+  goal: Goal;
   profile: LinkedInProfile;
 }
 
-/** State B of the two-stage panel: the final, non-provisional Match Breakdown — only ever
+/** State B of the two-stage panel: the final, non-provisional Profile Analysis — only ever
  * rendered once collection has settled (or the user explicitly asked to analyze early), never
- * shown as a preview of an in-progress read. */
-export function AnalysisView({ result, goalName, profile }: AnalysisViewProps) {
-  const level = matchLevel(result);
-  const groups = buildMatchBreakdown(result);
-  const titleAlignment = assessTitleAlignment(goalName, profile);
+ * shown as a preview of an in-progress read. This is a statement of relevance to the user's
+ * current goal, not a judgment of the person — the same profile can score very differently
+ * under a different goal (see scoreProfile.test.ts's own worked example). */
+export function AnalysisView({ result, goal, profile }: AnalysisViewProps) {
+  const state = matchDisplayState(result);
+  const analysis = useMemo(() => {
+    const evidence = buildProfileEvidence(profile);
+    return buildProfileAnalysis(goal, profile, result, evidence);
+  }, [goal, profile, result]);
+  const guidance = useMemo(() => buildContactGuidance(analysis.recommendation.label), [analysis.recommendation.label]);
+
+  const scoreLabel = "scorePercent" in state ? `${state.scorePercent}%` : null;
 
   return (
     <div className="lw-analysis">
-      <div className={`lw-summary-card lw-summary-card--${level}`}>
-        <div className="lw-summary-card__level">{MATCH_LEVEL_LABELS[level]}</div>
-        {result.scorePercent !== null && <div className="lw-summary-card__score">{result.scorePercent}%</div>}
-        <div className="lw-summary-card__target">For: {goalName}</div>
-        {result.scorePercent !== null && !result.complete && (
-          <p className="lw-summary-card__note">
-            Score capped — a Must-Have criterion could not be confirmed on this profile.
-          </p>
+      <div className="lw-summary-card" style={{ borderColor: matchDisplayColor(state) }}>
+        <div className="lw-summary-card__level" style={{ color: matchDisplayColor(state) }}>
+          {matchDisplayLabel(state)}
+        </div>
+        {scoreLabel && <div className="lw-summary-card__score">{scoreLabel}</div>}
+        <div className="lw-summary-card__target">For: {goal.name}</div>
+        {state.kind === "low_confidence" && (
+          <p className="lw-summary-card__note">Limited profile information — this score may change once more of the profile loads.</p>
         )}
-        {result.scorePercent === null && (
-          <p className="lw-summary-card__note">Add at least one criterion (other than Excluded) to score this profile.</p>
+        {result.scorePercent !== null && !result.complete && state.kind !== "low_confidence" && (
+          <p className="lw-summary-card__note">A Must-Have criterion could not be confirmed on this profile.</p>
         )}
+        {result.scorePercent === null && <p className="lw-summary-card__note">Add at least one criterion (other than Excluded) to score this profile.</p>}
       </div>
 
       <section className="lw-section">
-        <h3>Title Alignment</h3>
-        <p className={`lw-title-alignment lw-title-alignment--${titleAlignment.level}`}>{titleAlignment.summary}</p>
+        <h3>Summary</h3>
+        <p className="lw-summary-text">{analysis.summary}</p>
       </section>
 
-      {groups.map((group) => (
-        <section className="lw-section" key={group.key}>
-          <h3>{group.title}</h3>
-          <div className="lw-chips">
-            {group.chips.map((chip) => (
-              <span
-                key={chip.label}
-                className={`lw-chip ${chip.matched ? "lw-chip--matched" : "lw-chip--missing"}`}
-                title={chip.detail}
-              >
-                {chip.matched ? "✓" : "✕"} {chip.label}
-              </span>
-            ))}
-          </div>
-        </section>
-      ))}
+      <section className="lw-section">
+        <h3>Recommendation</h3>
+        <p className="lw-recommendation">{analysis.recommendation.label}</p>
+        <p className="lw-recommendation__reason">{analysis.recommendation.reason}</p>
+        <div className="lw-guidance">
+          <span className={`lw-guidance__pill lw-guidance__pill--contact-${guidance.contact.replace(/\s+/g, "-").toLowerCase()}`}>
+            Contact: {guidance.contact}
+          </span>
+          <span className={`lw-guidance__pill lw-guidance__pill--save-${guidance.save.replace(/\s+/g, "-").toLowerCase()}`}>
+            Save: {guidance.save}
+          </span>
+        </div>
+      </section>
 
-      {groups.length === 0 && <p className="lw-empty">No criteria to evaluate for this goal yet.</p>}
+      <section className="lw-section">
+        <h3>Experience Assessment</h3>
+        <p className="lw-experience-level">{EXPERIENCE_LEVEL_LABELS[analysis.experienceLevel]}</p>
+      </section>
+
+      {analysis.strengths.length > 0 && (
+        <section className="lw-section">
+          <h3>Why They Match</h3>
+          <ul className="lw-evidence-list">
+            {analysis.strengths.map((strength) => (
+              <li key={strength.label} className="lw-evidence-list__item lw-evidence-list__item--strength" title={strength.detail}>
+                {strength.label}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {analysis.gaps.length > 0 && (
+        <section className="lw-section">
+          <h3>What&apos;s Missing</h3>
+          <ul className="lw-evidence-list">
+            {analysis.gaps.map((gap) => (
+              <li key={gap.label} className="lw-evidence-list__item lw-evidence-list__item--gap" title={gap.detail}>
+                {gap.label}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {analysis.strengths.length === 0 && analysis.gaps.length === 0 && (
+        <p className="lw-empty">No criteria to evaluate for this goal yet.</p>
+      )}
     </div>
   );
 }

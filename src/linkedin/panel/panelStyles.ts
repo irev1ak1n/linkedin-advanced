@@ -119,6 +119,7 @@ export function getPanelStyles(widthPx: number): string {
     padding: 16px;
     border-radius: 10px;
     background: #f3f6f8;
+    border: 1px solid transparent;
     margin-bottom: 16px;
   }
   .lw-summary-card__level {
@@ -126,19 +127,6 @@ export function getPanelStyles(widthPx: number): string {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #56687a;
-  }
-  .lw-summary-card--strong .lw-summary-card__level {
-    color: #057642;
-  }
-  .lw-summary-card--good .lw-summary-card__level {
-    color: #0a66c2;
-  }
-  .lw-summary-card--low .lw-summary-card__level {
-    color: #8a6d00;
-  }
-  .lw-summary-card--excluded .lw-summary-card__level {
-    color: #c0392b;
   }
   .lw-summary-card__score {
     font-size: 32px;
@@ -166,38 +154,95 @@ export function getPanelStyles(widthPx: number): string {
     color: #56687a;
     margin: 0 0 8px;
   }
-  .lw-title-alignment {
+  .lw-summary-text {
     margin: 0;
     font-size: 12.5px;
-  }
-  .lw-title-alignment--aligned {
-    color: #057642;
-  }
-  .lw-title-alignment--partial {
-    color: #8a6d00;
-  }
-  .lw-title-alignment--unclear {
-    color: #56687a;
+    line-height: 1.5;
+    color: #1a1a1a;
   }
 
-  .lw-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+  .lw-recommendation {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 700;
   }
-  .lw-chip {
+  .lw-recommendation__reason {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: #56687a;
+  }
+  .lw-guidance {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .lw-guidance__pill {
     display: inline-block;
     padding: 4px 10px;
     border-radius: 12px;
-    font-size: 12px;
+    font-size: 11.5px;
+    font-weight: 600;
     border: 1px solid transparent;
   }
-  .lw-chip--matched {
+  .lw-guidance__pill--contact-recommended {
     background: #e6f4ea;
     color: #057642;
     border-color: #b7dfc4;
   }
-  .lw-chip--missing {
+  .lw-guidance__pill--contact-maybe {
+    background: #fff6e0;
+    color: #8a6d00;
+    border-color: #f0dfa8;
+  }
+  .lw-guidance__pill--contact-not-recommended {
+    background: #fdecea;
+    color: #c0392b;
+    border-color: #f3c6c1;
+  }
+  .lw-guidance__pill--save-save {
+    background: #e6f4ea;
+    color: #057642;
+    border-color: #b7dfc4;
+  }
+  .lw-guidance__pill--save-consider-saving {
+    background: #fff6e0;
+    color: #8a6d00;
+    border-color: #f0dfa8;
+  }
+  .lw-guidance__pill--save-skip {
+    background: #fdecea;
+    color: #c0392b;
+    border-color: #f3c6c1;
+  }
+
+  .lw-experience-level {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #0a66c2;
+  }
+
+  .lw-evidence-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lw-evidence-list__item {
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    border: 1px solid transparent;
+  }
+  .lw-evidence-list__item--strength {
+    background: #e6f4ea;
+    color: #057642;
+    border-color: #b7dfc4;
+  }
+  .lw-evidence-list__item--gap {
     background: #fdecea;
     color: #c0392b;
     border-color: #f3c6c1;

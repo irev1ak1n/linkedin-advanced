@@ -10,6 +10,7 @@ const SECTION_LABELS: Record<ProfileSectionName, string> = {
   certifications: "Certifications",
   organizations: "Organizations",
   volunteering: "Volunteering",
+  languages: "Languages",
 };
 
 interface ScanningViewProps {

@@ -28,6 +28,9 @@ export type ProfileProjectEntry = ProfileListEntry;
 export type ProfileCertificationEntry = ProfileListEntry;
 export type ProfileOrganizationEntry = ProfileListEntry;
 export type ProfileVolunteeringEntry = ProfileListEntry;
+/** `name` is the language itself, `description` its proficiency level when LinkedIn shows one
+ * (e.g. "Native or bilingual proficiency"). */
+export type ProfileLanguageEntry = ProfileListEntry;
 
 /** Every section the adapter knows how to look for — used purely for progress display (“About
  * found, still watching for Education”), never to demand a profile contain all of them. A
@@ -42,7 +45,8 @@ export type ProfileSectionName =
   | "projects"
   | "certifications"
   | "organizations"
-  | "volunteering";
+  | "volunteering"
+  | "languages";
 
 export const ALL_PROFILE_SECTIONS: ProfileSectionName[] = [
   "about",
@@ -53,6 +57,7 @@ export const ALL_PROFILE_SECTIONS: ProfileSectionName[] = [
   "certifications",
   "organizations",
   "volunteering",
+  "languages",
 ];
 
 export interface LinkedInProfile {
@@ -67,6 +72,7 @@ export interface LinkedInProfile {
   certifications: ProfileCertificationEntry[];
   organizations: ProfileOrganizationEntry[];
   volunteering: ProfileVolunteeringEntry[];
+  languages: ProfileLanguageEntry[];
   /**
    * True once the adapter found at least a name or headline on the page — lets callers tell
    * "this is a real, at-least-partially-read profile" apart from "nothing could be read at
@@ -83,6 +89,7 @@ export const EMPTY_PROFILE: LinkedInProfile = {
   certifications: [],
   organizations: [],
   volunteering: [],
+  languages: [],
   extracted: false,
 };
 
@@ -99,62 +106,94 @@ export function foundSections(profile: LinkedInProfile): ProfileSectionName[] {
   if (profile.certifications.length > 0) found.push("certifications");
   if (profile.organizations.length > 0) found.push("organizations");
   if (profile.volunteering.length > 0) found.push("volunteering");
+  if (profile.languages.length > 0) found.push("languages");
   return found;
 }
 
 /** Every text field of a profile that matching is allowed to search, paired with a
- * human-readable label used in evidence — the single source of truth for "where can a
- * criterion's evidence come from," so the matcher and any future field never drift apart. */
+ * human-readable label used in evidence, and the section it actually came from (used by the
+ * evidence layer — see src/evidence/ — to apply section-appropriate role-level defaults; a
+ * mention in "Experience" implies real engagement in a way the same words in "Skills" would
+ * not) — the single source of truth for "where can a criterion's evidence come from," so the
+ * matcher and any future field never drift apart. */
 export interface ProfileTextField {
   label: string;
   text: string;
+  section: ProfileSectionName | "headline" | "location";
 }
 
 export function profileTextFields(profile: LinkedInProfile): ProfileTextField[] {
   const fields: ProfileTextField[] = [];
-  if (profile.headline) fields.push({ label: "Headline", text: profile.headline });
-  if (profile.location) fields.push({ label: "Location", text: profile.location });
-  if (profile.about) fields.push({ label: "About", text: profile.about });
+  if (profile.headline) fields.push({ label: "Headline", text: profile.headline, section: "headline" });
+  if (profile.location) fields.push({ label: "Location", text: profile.location, section: "location" });
+  if (profile.about) fields.push({ label: "About", text: profile.about, section: "about" });
   for (const entry of profile.experience) {
     const parts = [entry.title, entry.company, entry.description].filter(Boolean);
     if (parts.length > 0) {
       fields.push({
         label: `Experience${entry.title ? `: ${entry.title}` : ""}`,
         text: parts.join(" — "),
+        section: "experience",
       });
     }
   }
   for (const entry of profile.education) {
     const parts = [entry.school, entry.degree, entry.field].filter(Boolean);
     if (parts.length > 0) {
-      fields.push({ label: `Education${entry.school ? `: ${entry.school}` : ""}`, text: parts.join(" — ") });
+      fields.push({
+        label: `Education${entry.school ? `: ${entry.school}` : ""}`,
+        text: parts.join(" — "),
+        section: "education",
+      });
     }
   }
   if (profile.skills.length > 0) {
-    fields.push({ label: "Skills", text: profile.skills.join(", ") });
+    fields.push({ label: "Skills", text: profile.skills.join(", "), section: "skills" });
   }
   for (const entry of profile.projects) {
     const parts = [entry.name, entry.description].filter(Boolean);
     if (parts.length > 0) {
-      fields.push({ label: `Project${entry.name ? `: ${entry.name}` : ""}`, text: parts.join(" — ") });
+      fields.push({ label: `Project${entry.name ? `: ${entry.name}` : ""}`, text: parts.join(" — "), section: "projects" });
     }
   }
   for (const entry of profile.certifications) {
     const parts = [entry.name, entry.description].filter(Boolean);
     if (parts.length > 0) {
-      fields.push({ label: `Certification${entry.name ? `: ${entry.name}` : ""}`, text: parts.join(" — ") });
+      fields.push({
+        label: `Certification${entry.name ? `: ${entry.name}` : ""}`,
+        text: parts.join(" — "),
+        section: "certifications",
+      });
     }
   }
   for (const entry of profile.organizations) {
     const parts = [entry.name, entry.description].filter(Boolean);
     if (parts.length > 0) {
-      fields.push({ label: `Organization${entry.name ? `: ${entry.name}` : ""}`, text: parts.join(" — ") });
+      fields.push({
+        label: `Organization${entry.name ? `: ${entry.name}` : ""}`,
+        text: parts.join(" — "),
+        section: "organizations",
+      });
     }
   }
   for (const entry of profile.volunteering) {
     const parts = [entry.name, entry.description].filter(Boolean);
     if (parts.length > 0) {
-      fields.push({ label: `Volunteering${entry.name ? `: ${entry.name}` : ""}`, text: parts.join(" — ") });
+      fields.push({
+        label: `Volunteering${entry.name ? `: ${entry.name}` : ""}`,
+        text: parts.join(" — "),
+        section: "volunteering",
+      });
+    }
+  }
+  for (const entry of profile.languages) {
+    const parts = [entry.name, entry.description].filter(Boolean);
+    if (parts.length > 0) {
+      fields.push({
+        label: `Language${entry.name ? `: ${entry.name}` : ""}`,
+        text: parts.join(" — "),
+        section: "languages",
+      });
     }
   }
   return fields;

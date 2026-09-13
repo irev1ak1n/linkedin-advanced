@@ -57,7 +57,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
       );
     }
     if (result) {
-      return <AnalysisView result={result} goalName={goal.name} profile={profile} />;
+      return <AnalysisView result={result} goal={goal} profile={profile} />;
     }
     return null;
   }
