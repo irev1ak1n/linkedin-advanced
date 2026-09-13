@@ -4,17 +4,35 @@
 
 export type CriterionImportance = "MUST_HAVE" | "PREFERRED" | "OPTIONAL" | "EXCLUDED";
 
+/** What KIND of fact a criterion represents — display-only, never read by matching (see
+ * src/matching), which only ever looks at `label`/`importance`. Lets the in-page panel's
+ * compact "Your ideal match" card show a short, readable heading ("Role", "Location", ...)
+ * instead of a flat list, while the actual criterion driving the score stays exactly the same
+ * object. Set by the NLP parser when it recognizes which extraction pattern produced a
+ * criterion; left unset for manually-added criteria, which fall back to an importance-based
+ * heading instead (see linkedin/panel/criterionDisplay.ts). */
+export type CriterionCategory = "role" | "location" | "experience" | "context" | "other";
+
 export interface Criterion {
   id: string;
   /** Free text the user typed, e.g. "FRC mentor", "Python", "still in college". */
   label: string;
   importance: CriterionImportance;
+  category?: CriterionCategory;
+  /** Display-only — links criteria that came from the same "X or Y" alternative phrase in the
+   * original description (see nlp/goalTextParser.ts's expandSharedTailAlternatives), so the
+   * panel can show them as one bullet joined by "or" instead of implying two independent
+   * requirements. Never read by matching: each criterion is still scored on its own. */
+  groupId?: string;
 }
 
 export interface Goal {
   id: string;
   name: string;
   criteria: Criterion[];
+  /** Free-form notes the user attaches to this search intent — persisted alongside the goal,
+   * never read by matching/scoring. Purely a place to jot context for themselves. */
+  notes?: string;
 }
 
 let idCounter = 0;
@@ -27,8 +45,12 @@ export function generateId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${idCounter}`;
 }
 
-export function createCriterion(label: string, importance: CriterionImportance): Criterion {
-  return { id: generateId("criterion"), label, importance };
+export function createCriterion(
+  label: string,
+  importance: CriterionImportance,
+  options?: { category?: CriterionCategory; groupId?: string },
+): Criterion {
+  return { id: generateId("criterion"), label, importance, ...options };
 }
 
 export function createGoal(name: string): Goal {

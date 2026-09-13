@@ -1,8 +1,9 @@
 // Small build driver using Vite's JS API directly, instead of adding a Chrome-extension
-// bundler plugin dependency. Three targets (side panel app, background service worker,
-// LinkedIn content script) need different Vite configs in one `npm run build` /
-// `npm run dev`, which a single vite.config.ts cannot express — this script is the
-// minimal-dependency alternative.
+// bundler plugin dependency. Two targets (background service worker, LinkedIn content script)
+// need different Vite configs in one `npm run build` / `npm run dev`, which a single
+// vite.config.ts cannot express — this script is the minimal-dependency alternative. There is
+// no browser side panel build anymore — LinkWise's entire UI lives inside the content script's
+// own in-page panel.
 import { build } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
@@ -21,20 +22,6 @@ const watch = process.argv.includes("--watch");
 // does not exist in a Chrome content-script (or service-worker) context.
 function nodeEnvDefine(mode) {
   return { "process.env.NODE_ENV": JSON.stringify(mode) };
-}
-
-async function buildSidePanel() {
-  await build({
-    root: path.join(root, "src/sidepanel"),
-    configFile: false,
-    base: "./",
-    plugins: [react()],
-    build: {
-      outDir: path.join(root, "dist/sidepanel"),
-      emptyOutDir: true,
-      watch: watch ? {} : null,
-    },
-  });
 }
 
 async function buildBackground() {
@@ -59,10 +46,11 @@ async function buildLinkedInContentScript() {
   // Manifest V3 `content_scripts` entries cannot be ES modules (unlike the background
   // service worker, which explicitly opts into `"type": "module"`) — Chrome loads them as
   // classic scripts. `formats: ["iife"]` produces a single self-contained script with no
-  // external imports, which is what a manifest-declared content script requires. Now also
-  // needs the React plugin: the in-page LinkWise panel (linkedin/panel/) renders its own React
-  // tree inside this same content-script bundle, sharing a JS realm with the collection engine
-  // instead of talking to it over chrome.runtime messaging.
+  // external imports, which is what a manifest-declared content script requires. Needs the
+  // React plugin: the in-page LinkWise panel (linkedin/panel/) is the ENTIRE LinkWise UI now —
+  // goal setup (including document upload/parsing), profile scanning, and match analysis all
+  // render inside this same content-script bundle, sharing a JS realm with the collection
+  // engine instead of talking to it over chrome.runtime messaging.
   await build({
     root,
     configFile: false,
@@ -82,14 +70,57 @@ async function buildLinkedInContentScript() {
   });
 }
 
+async function buildDocumentParsingChunk() {
+  // Loaded lazily at runtime — see documents/loadDocumentParser.ts's
+  // `import(chrome.runtime.getURL(...))` — specifically so the main content script (injected
+  // into every LinkedIn page load) never pays for pdfjs-dist/mammoth's real weight. Confirmed
+  // empirically: statically bundling this into the iife content script ballooned it from
+  // ~230KB to ~2.9MB, just to support an optional "upload a document instead" button used by a
+  // small fraction of sessions. `emptyOutDir: false` because this writes into the same
+  // `dist/content` directory `buildLinkedInContentScript` already populated with `linkedin.js`;
+  // only one of the two targets should ever clear it, and it must run first (see the call order
+  // below).
+  await build({
+    root,
+    configFile: false,
+    define: nodeEnvDefine(watch ? "development" : "production"),
+    build: {
+      outDir: path.join(root, "dist/content"),
+      emptyOutDir: false,
+      watch: watch ? {} : null,
+      rollupOptions: {
+        output: { chunkFileNames: "[name].js" },
+      },
+      lib: {
+        entry: path.join(root, "src/documents/readDocumentText.ts"),
+        formats: ["es"],
+        fileName: () => "documentParsing.js",
+      },
+    },
+  });
+
+  // Confirmed live: pdfjs-dist's own `?url` import of its worker script did not resolve to a
+  // usable URL under this build (a Rollup lib-mode build driven directly through Vite's JS API
+  // rather than the `vite build` CLI), which made pdfjs silently fall back to its own "fake
+  // worker" mode — an internal fallback that tries to dynamically `import()` a
+  // `data:text/javascript` URL of its own bundled core. Chrome's default extension CSP blocks
+  // that outright, breaking PDF parsing entirely. Copying the real worker file to a fixed,
+  // known path and pointing `GlobalWorkerOptions.workerSrc` at it via `chrome.runtime.getURL`
+  // (see readDocumentText.ts) sidesteps bundler asset-URL resolution altogether.
+  copyFileSync(
+    path.join(root, "node_modules/pdfjs-dist/build/pdf.worker.min.mjs"),
+    path.join(root, "dist/content/pdf.worker.min.mjs"),
+  );
+}
+
 function copyManifest() {
   mkdirSync(path.join(root, "dist"), { recursive: true });
   copyFileSync(path.join(root, "manifest.json"), path.join(root, "dist/manifest.json"));
 }
 
-await buildSidePanel();
 await buildBackground();
 await buildLinkedInContentScript();
+await buildDocumentParsingChunk();
 copyManifest();
 
 console.log(

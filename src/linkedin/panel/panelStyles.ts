@@ -53,6 +53,250 @@ export function getPanelStyles(widthPx: number): string {
     color: #56687a;
     font-style: italic;
   }
+  .lw-divider {
+    border: none;
+    border-top: 1px solid #e4e9ed;
+    margin: 4px 0 16px;
+  }
+
+  /* Goal Setup section (the panel's own goal editor — no separate side-panel version exists) */
+  .app__section {
+    margin-top: 18px;
+  }
+  .app__section:first-child {
+    margin-top: 0;
+  }
+  .app__section h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #56687a;
+    margin: 0 0 8px;
+  }
+  .section-hint {
+    color: #56687a;
+    font-size: 12px;
+    margin: 0 0 8px;
+  }
+  .section-empty {
+    color: #56687a;
+    font-style: italic;
+    margin: 0;
+  }
+  .field-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #56687a;
+    margin-bottom: 4px;
+  }
+  select,
+  .text-input {
+    font: inherit;
+    padding: 6px 8px;
+    border: 1px solid #d0d7dd;
+    border-radius: 6px;
+    background: #fff;
+    color: #1a1a1a;
+  }
+  .text-input--small {
+    flex: 1;
+    padding: 5px 7px;
+  }
+  .text-area {
+    font: inherit;
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #d0d7dd;
+    border-radius: 6px;
+    resize: vertical;
+    min-height: 70px;
+  }
+  .button {
+    font: inherit;
+    border-radius: 16px;
+    padding: 6px 14px;
+    cursor: pointer;
+    border: 1px solid #0a66c2;
+    color: #0a66c2;
+    background: #fff;
+  }
+  .button--secondary {
+    white-space: nowrap;
+  }
+  .button--primary {
+    background: #0a66c2;
+    color: #fff;
+  }
+  .button--small {
+    padding: 4px 10px;
+    font-size: 11.5px;
+  }
+  .icon-button {
+    border: 1px solid #d0d7dd;
+    background: #fff;
+    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    line-height: 1;
+    cursor: pointer;
+    color: #56687a;
+  }
+  .icon-button--add {
+    color: #0a66c2;
+    border-color: #0a66c2;
+  }
+  .criterion-chip__importance {
+    font: inherit;
+    font-size: 11px;
+    padding: 3px 4px;
+    border: 1px solid #d0d7dd;
+    border-radius: 6px;
+    background: #fff;
+    color: #1a1a1a;
+  }
+
+  .goal-setup__textarea-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+  }
+  .char-count {
+    font-size: 11px;
+    color: #8a949c;
+  }
+  .goal-setup__upload {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .goal-setup__upload-label {
+    cursor: pointer;
+  }
+  .goal-setup__file-status {
+    font-size: 11px;
+    color: #56687a;
+  }
+  .goal-setup__file-error {
+    font-size: 11px;
+    color: #c0392b;
+  }
+
+  /* Your ideal match — compact readable criteria card, replaces the old category-card editor */
+  .lw-ideal-match {
+    background: #f7f8fa;
+    border: 1px solid #e4e9ed;
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .lw-ideal-match__stale {
+    font-size: 11.5px;
+    color: #8a6d00;
+    background: #fff6e0;
+    border: 1px solid #f0dfa8;
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin: 0 0 8px;
+  }
+  .lw-ideal-match__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lw-ideal-match__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    background: #fff;
+    border: 1px solid #e4e9ed;
+    border-radius: 8px;
+    padding: 6px 8px;
+  }
+  .lw-ideal-match__badge {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 6px;
+    border-radius: 6px;
+    color: #56687a;
+    background: #eef1f4;
+    white-space: nowrap;
+  }
+  .lw-ideal-match__badge--must_have {
+    color: #c0392b;
+    background: #fdecea;
+  }
+  .lw-ideal-match__badge--preferred {
+    color: #0a66c2;
+    background: #eaf3fc;
+  }
+  .lw-ideal-match__badge--optional {
+    color: #57606a;
+    background: #eef1f4;
+  }
+  .lw-ideal-match__badge--excluded {
+    color: #6b6b6b;
+    background: #f0f0f0;
+  }
+  .lw-ideal-match__text {
+    flex: 1;
+    font-size: 12.5px;
+    min-width: 100px;
+  }
+  .lw-ideal-match__actions {
+    display: flex;
+    gap: 8px;
+  }
+  .lw-ideal-match__actions button {
+    border: none;
+    background: transparent;
+    color: #0a66c2;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 2px 0;
+  }
+  .lw-ideal-match__edit-row,
+  .lw-ideal-match__add-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .lw-ideal-match__add-toggle {
+    display: block;
+    margin-top: 8px;
+    border: none;
+    background: transparent;
+    color: #0a66c2;
+    font-size: 12.5px;
+    cursor: pointer;
+    padding: 2px 0;
+  }
+  .lw-ideal-match__use-button {
+    margin-top: 12px;
+    width: 100%;
+  }
+
+  /* Notes */
+  .lw-notes {
+    background: #f7f8fa;
+    border: 1px solid #e4e9ed;
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .lw-notes__textarea {
+    width: 100%;
+    min-height: 50px;
+  }
 
   /* Scanning state */
   .lw-scanning__title {

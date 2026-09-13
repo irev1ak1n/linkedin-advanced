@@ -2,12 +2,17 @@
 // text description. This is pattern matching and a small curated vocabulary — NOT AI/LLM
 // semantic understanding, and never presented as such. It is intentionally conservative: a
 // phrase it doesn't recognize is simply left out of the draft rather than guessed at, and the
-// user always reviews/edits the result before it's saved (see sidepanel's GoalSetupTab).
-import type { CriterionImportance } from "../models/goal";
+// user always reviews/edits the result before it's saved (see the in-page panel's GoalSetupSection).
+import type { CriterionCategory, CriterionImportance } from "../models/goal";
 
 export interface DraftCriterion {
   label: string;
   importance: CriterionImportance;
+  category?: CriterionCategory;
+  /** Set (to the same value) on every criterion produced from one "X or Y" alternative phrase
+   * — see `expandSharedTailAlternatives` — so the panel can display them as one bullet joined
+   * by "or" instead of implying independent requirements. */
+  groupId?: string;
 }
 
 export interface GoalDraft {
@@ -127,11 +132,15 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
 
   const criteria: DraftCriterion[] = [];
   const seen = new Set<string>();
-  function addCriterion(label: string, importance: CriterionImportance): void {
+  function addCriterion(
+    label: string,
+    importance: CriterionImportance,
+    extra?: { category?: CriterionCategory; groupId?: string },
+  ): void {
     const key = label.trim().toLowerCase();
     if (!key || seen.has(key)) return;
     seen.add(key);
-    criteria.push({ label: label.trim(), importance });
+    criteria.push({ label: label.trim(), importance, ...extra });
   }
 
   let working = text;
@@ -154,7 +163,7 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
     const subjectPhrase = collapseWhitespace(subjectMatch[1]);
     if (subjectPhrase) {
       name = titleCase(subjectPhrase);
-      addCriterion(singularizeLastWord(subjectPhrase), "MUST_HAVE");
+      addCriterion(singularizeLastWord(subjectPhrase), "MUST_HAVE", { category: "role" });
       working = blank(working, {
         start: subjectMatch.index + subjectMatch[0].indexOf(subjectMatch[1]),
         end: subjectMatch.index + subjectMatch[0].indexOf(subjectMatch[1]) + subjectMatch[1].length,
@@ -165,16 +174,21 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
   // 3. Location.
   const locationMatch = LOCATION_PATTERN.exec(working);
   if (locationMatch) {
-    addCriterion(locationMatch[1], "PREFERRED");
+    addCriterion(locationMatch[1], "PREFERRED", { category: "location" });
     working = blank(working, { start: locationMatch.index, end: locationMatch.index + locationMatch[0].length });
   }
 
-  // 4. "with X (or Y) experience/background" — skill/domain descriptor(s).
+  // 4. "with X (or Y) experience/background" — skill/domain descriptor(s). Alternatives from
+  // the same original phrase share a groupId so the panel can display them as one "X or Y"
+  // bullet rather than implying they're independently required (see criterionDisplay.ts) —
+  // display-only: each still scores as its own separate criterion, unchanged.
   const skillMatch = SKILL_EXPERIENCE_PATTERN.exec(working);
   if (skillMatch) {
     const phrase = collapseWhitespace(skillMatch[1]);
-    for (const expanded of expandSharedTailAlternatives(phrase)) {
-      addCriterion(expanded, "PREFERRED");
+    const expandedPhrases = expandSharedTailAlternatives(phrase);
+    const groupId = expandedPhrases.length > 1 ? "experience-alternatives" : undefined;
+    for (const expanded of expandedPhrases) {
+      addCriterion(expanded, "PREFERRED", { category: "experience", groupId });
     }
     working = blank(working, { start: skillMatch.index, end: skillMatch.index + skillMatch[0].length });
   }
@@ -185,7 +199,7 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
   for (const term of DOMAIN_VOCABULARY) {
     if (seen.has(term)) continue;
     const pattern = new RegExp(`\\b${term.replace(/\s+/g, "\\s+")}\\b`, "i");
-    if (pattern.test(lowerWorking)) addCriterion(term, "OPTIONAL");
+    if (pattern.test(lowerWorking)) addCriterion(term, "OPTIONAL", { category: "context" });
   }
 
   if (!name) {

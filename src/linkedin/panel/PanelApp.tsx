@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useCollectionData } from "./useCollectionData";
-import { useActiveGoal } from "./useActiveGoal";
+import { useGoalStore } from "./useGoalStore";
+import { GoalSetupSection } from "./GoalSetupSection";
 import { ScanningView } from "./ScanningView";
 import { AnalysisView } from "./AnalysisView";
 import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
@@ -10,17 +11,27 @@ interface PanelAppProps {
 }
 
 /**
- * The in-page LinkWise panel's whole UI. The opener (and this panel) mount on every LinkedIn
- * page, but `profileKey` is only ever non-null while the current URL is a `/in/...` profile
- * (see collectionEngine.ts's `onLeaveProfile`) — everywhere else this shows a plain neutral
- * state rather than pretending there's a profile to analyze. On a profile, exactly two states:
- * Scanning (collection incomplete) and Analysis (collection settled, or the user asked to
- * analyze early) — never a third "in-between" view, and never a final score shown while still
- * Scanning.
+ * The in-page LinkWise panel's whole UI — the ONLY LinkWise interface; there is no separate
+ * browser side panel anymore. The opener (and this panel) mount on every LinkedIn page, but
+ * `profileKey` is only ever non-null while the current URL is a `/in/...` profile (see
+ * collectionEngine.ts's `onLeaveProfile`) — everywhere else the profile section shows a plain
+ * neutral state rather than pretending there's a profile to analyze, while Goal Setup (describe
+ * who you're looking for, review the resulting criteria, jot notes) stays fully usable
+ * regardless of what page you're on. On a profile, the profile section is exactly two states: Scanning
+ * (collection incomplete) and Analysis (collection settled, or the user asked to analyze early)
+ * — never a third "in-between" view, and never a final score shown while still Scanning.
  */
 export function PanelApp({ onClose }: PanelAppProps) {
   const { profileKey, profile, collection } = useCollectionData();
-  const { goal, loaded: goalsLoaded } = useActiveGoal();
+  const {
+    selectedGoal: goal,
+    loaded: goalsLoaded,
+    addCriterion,
+    updateCriterion,
+    removeCriterion,
+    setActiveGoalCriteria,
+    updateGoalNotes,
+  } = useGoalStore();
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
 
   const forced = profileKey !== null && forcedKeys.has(profileKey);
@@ -33,18 +44,15 @@ export function PanelApp({ onClose }: PanelAppProps) {
     setForcedKeys((prev) => new Set(prev).add(profileKey));
   }
 
-  function renderBody() {
+  function renderProfileSection() {
     if (profileKey === null) {
       return <p className="lw-empty">Open a LinkedIn profile to analyze it.</p>;
     }
     if (!profile || !collection) {
       return <p className="lw-empty">Reading this profile…</p>;
     }
-    if (!goalsLoaded) {
-      return <p className="lw-empty">Loading your goal…</p>;
-    }
     if (!goal) {
-      return <p className="lw-empty">No active goal set. Click the LinkWise icon in your toolbar to create one.</p>;
+      return <p className="lw-empty">No active goal set yet — describe who you're looking for above.</p>;
     }
     if (!isFinal) {
       return (
@@ -70,7 +78,24 @@ export function PanelApp({ onClose }: PanelAppProps) {
           ✕
         </button>
       </header>
-      <div className="lw-panel__body">{renderBody()}</div>
+      <div className="lw-panel__body">
+        {!goalsLoaded ? (
+          <p className="lw-empty">Loading your goals…</p>
+        ) : (
+          <>
+            <GoalSetupSection
+              goal={goal}
+              onSetActiveCriteria={setActiveGoalCriteria}
+              onAddCriterion={addCriterion}
+              onUpdateCriterion={updateCriterion}
+              onRemoveCriterion={removeCriterion}
+              onUpdateNotes={updateGoalNotes}
+            />
+            <hr className="lw-divider" />
+            {renderProfileSection()}
+          </>
+        )}
+      </div>
     </div>
   );
 }

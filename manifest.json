@@ -10,16 +10,19 @@
     "service_worker": "background/index.js",
     "type": "module"
   },
-  "side_panel": {
-    "default_path": "sidepanel/index.html"
-  },
-  "permissions": ["sidePanel", "storage", "scripting"],
+  "permissions": ["storage", "scripting"],
   "host_permissions": ["https://*.linkedin.com/*"],
   "content_scripts": [
     {
       "matches": ["https://*.linkedin.com/*"],
       "js": ["content/linkedin.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content/*"],
+      "matches": ["https://*.linkedin.com/*"]
     }
   ]
 }

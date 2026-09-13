@@ -1,13 +1,8 @@
 // Lifecycle/orchestration only — no product business logic here.
-// Clicking the LinkWise toolbar action opens the Side Panel (Goal Setup). The profile-match
-// experience lives entirely on the LinkedIn page itself now (see linkedin/content.ts,
-// linkedin/panel/) — an in-page panel the content script mounts directly, with no involvement
-// from this background script at all.
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => {
-    console.error("LinkWise: failed to configure side panel behavior", error);
-  });
-});
+// LinkWise has no browser-level UI of its own anymore (no side panel, no popup) — the whole
+// interface (goal setup, profile scanning, match analysis) lives entirely on the LinkedIn page
+// itself (see linkedin/content.ts, linkedin/panel/), an in-page panel the content script mounts
+// directly, with no involvement from this background script at all.
 
 /**
  * Development-only tooling — both pieces below must be flipped off (DEV_TOOLING_ENABLED =
